@@ -17,6 +17,7 @@ See SPEC §2.
 1. **Build → Realtime Database → Create database.**
 2. Pick a location (e.g. `europe-west1`) and start in **locked mode**.
 3. Open the **Rules** tab, replace everything with the contents of `firebase/database.rules.json`, and click **Publish**.
+   Do this again whenever that file changes (e.g. P11b added the `feedback` node).
 
 ## 4. Register the web app and copy the config
 
@@ -48,6 +49,10 @@ and set the UID as shown. Expected results:
 | Write `{"from":"p1","type":"join","payload":"{}","at":1}` | `games/ABCDE/inbox/x1` | `p1` | allowed |
 | Write `{"from":"p2","type":"join","payload":"{}","at":1}` | `games/ABCDE/inbox/x1` | `p1` | denied (spoofed sender) |
 | Read | `games` | `p1` | denied (no listing games) |
+
+| Write `{"kind":"bug","text":"hi","at":1,"uid":"p1","screen":"home"}` | `feedback/f1` | `p1` | allowed (feedback) |
+| Write the same with `"uid":"p2"` | `feedback/f1` | `p1` | denied (spoofed sender) |
+| Read | `feedback` | `p1` | allowed (the backlog script reads it) |
 
 Rows 2–9 need the meta from row 1 to exist. In the playground, the simplest way is to first create it for real:
 write row 1's value to `games/ABCDE/meta` in the **Data** tab.

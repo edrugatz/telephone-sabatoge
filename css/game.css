@@ -23,6 +23,41 @@
   font-variant-numeric: tabular-nums;
 }
 .code-chip[hidden] { display: none; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Feedback (P11b) */
+.feedback-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.feedback-btn:active { border-color: var(--accent); }
+.feedback-sheet { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.feedback-sheet[hidden] { display: none; }
+.feedback-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / 0.55); opacity: 0; transition: opacity 0.2s ease; }
+.feedback-panel {
+  position: relative;
+  width: min(100%, 560px);
+  max-height: 90dvh;
+  overflow-y: auto;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateY(24px);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.feedback-sheet.is-open .feedback-backdrop { opacity: 1; }
+.feedback-sheet.is-open .feedback-panel { transform: none; opacity: 1; }
+.feedback-where { overflow-wrap: anywhere; }
+.feedback-kinds { align-self: flex-start; flex-wrap: wrap; border-radius: 20px; }
+.feedback-panel .form-error { flex: 1; }
+.feedback-panel .count { margin-left: auto; }
+.feedback-panel .row .btn-ghost { flex: 0 0 auto; }
 
 .game-footer { margin-top: auto; text-align: center; font-size: 0.85rem; }
 .game-footer a { color: var(--muted); text-decoration: none; }

@@ -1,5 +1,15 @@
 {
   "rules": {
+    "feedback": {
+      ".read": "auth != null",
+      "$id": {
+        ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['kind', 'text', 'at', 'uid', 'screen']) && newData.child('kind').val().matches(/^(bug|confusing|idea|like)$/) && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 1000 && newData.child('at').isNumber()",
+        "$field": {
+          ".validate": "(newData.isString() && newData.val().length <= 1500) || newData.isNumber() || newData.isBoolean()"
+        }
+      }
+    },
     "games": {
       "$code": {
         "meta": {

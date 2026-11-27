@@ -19,5 +19,6 @@ Static site (no build step), meant for GitHub Pages. Scores two sentences 0–10
 - Scoring is split: `measure()` runs the model (logits A→B and B→A in one batch), and `toScore()` applies the tuning curve `sigmoid((logit−offset)/temperature)` instantly. The debug panel (`js/tuning.js`) saves its settings in localStorage. The use case is a telephone word game: it rewards same meaning, not same words.
 - `js/similarity.js` is shared by the browser and the test. Keep it free of DOM/Node APIs. It holds the pinned `TRANSFORMERS_URL` and the tune page's `TUNING_STORAGE_KEY`.
 - Game scoring (P10): only the host phone loads the model (`js/ui/model.js`), `host.score()` fills `state.scoring`; tests fake `measure` (`tests/scoring-stage.test.js`). Leaderboards/awards (P11): `host.standings()` → `view.standings`, texts in `js/ui/standings-view.js`.
+- Playtest feedback (P11b): 💬 sheet → Firebase `feedback/`. `npm run feedback` prints new entries (read-only); paste them into `docs/BACKLOG.md` and triage them with the user (accept/fix or reject with a reason). `firebase/database.rules.json` changes must be re-published by the user in the Firebase console.
 - User preferences: English only, Compare button (no live scoring), TinyBERT only.
 - Always overwrite `response.md` (repo root) with your full final reply each turn: the PolyDev UI sometimes swallows chat responses.

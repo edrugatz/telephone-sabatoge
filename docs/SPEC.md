@@ -6,7 +6,7 @@
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
 Status: **in progress (P1–P11 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
-screen, pass + round progression, revenge UI, model scoring, leaderboards + awards; P12 next).** Existing code: the
+screen, pass + round progression, revenge UI, model scoring, leaderboards + awards, P11b playtest feedback; P12 next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -408,6 +408,22 @@ Three awards:
   **🛡️ Best Preservers** and **😈 Best Saboteurs** (your row outlined, "(you)"), then a collapsed **📜 Chain scores** with the
   P10 list. Whether it is open is kept outside the DOM, so a re-render doesn't close it.
 
+### Playtest feedback (`js/ui/feedback.js`, `js/ui/feedback-sheet.js`, P11b)
+
+- A **💬 button** in the header, on every screen. It opens a bottom sheet **over** the game (outside `#screen`), so the game
+  keeps running underneath and live updates never redraw it; **Back to the game** (or the backdrop, or Esc) closes it.
+- Sheet: "📍 where you are" line, kind chips **🐛 Bug / 😕 Confusing / 💡 Idea / ❤️ Like** (default Bug), a text box (1–1000
+  characters, counter), **Send feedback 📨**. After sending: toast "Thanks! Feedback sent 🙏" and the sheet closes. A failure
+  keeps the text and shows the reason. The draft lives in memory until sent.
+- **Context**, taken when the sheet opens: `screen` (router name), `stage`, `round`, `task` (playing only), game `code`,
+  `name`, `host`, `players`; plus `at`, `uid`, the **last 5 errors** (`console.error`, uncaught errors, rejections), user
+  agent and page. `buildReport()` drops empty fields.
+- **Storage**: Firebase `feedback/{pushId}`, outside `games/`. Rules: any signed-in phone can add one (its own `uid`,
+  never overwrite) and read them all (nothing in the game is sensitive). Kinds, lengths and field types are checked.
+- **Backlog**: `npm run feedback` (`scripts/feedback.mjs`) signs in anonymously over REST and prints the entries not yet in
+  `docs/BACKLOG.md` (`<!-- feedback-id -->` marks) as ready-to-paste entries. It never edits files: entries are added and
+  triaged in a session (🆕 New → ✅ Accepted → 🔧 Done, or ❌ Rejected with a reason).
+
 ## 11. Design philosophy
 
 Party companion, not a productivity tool. Simple readable phone screens, obvious next action, minimal
@@ -449,6 +465,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt (`tests/revenge-stage.test.js`) | ✅ |
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes (`tests/scoring-stage.test.js`; `npm test` also scores a played game with the real model) | ✅ |
 | P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game (`tests/standings-stage.test.js`: 8 players with revenge, every phone; an all-identical game gives only the Guardian award) | ✅ |
+| P11b | Playtest feedback | 💬 button on every screen → sheet over the game (kind + text), context recorded automatically, stored in Firebase `feedback/`; `npm run feedback` lists new entries for `docs/BACKLOG.md` triage | `tests/feedback.test.js` (report, limits, error log, memory push, backlog dedupe/format); a real entry sent from a phone shows up in `npm run feedback` | ✅ |
 | P12 | Chain reveal | Step-by-step reveal per chain: sentences, who drew/interpreted, active rules (revenge highlighted), drift from start to end | Walk through every chain of a played game on a phone screen | ⬜ |
 
 ---
@@ -516,5 +533,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P9b: revenge prompt (§10 Revenge prompt). Shown both during the task and on the waiting screen (most time before the host advances), in its own slot below the task. Unavailable targets are hidden silently, so the prompt never hints at the routing. Skip is per round, the revenge is kept. Bots can take revenge from 🧪 Testing. Test: `tests/revenge-stage.test.js`. |
 | 2026-11-27 | P10: model scoring (§10 Scoring). Only the host phone loads TinyBERT (in the background during the game) and scores at the end; results and progress are published to every view. The curve comes from the host phone's `tune.html` settings (default if none) and is fixed when scoring starts. Raw logits are kept per transformation. Progress is throttled to one publish per 750 ms, and a host reload resumes without re-measuring. Tests: `tests/scoring-stage.test.js` (fake model), `npm test` (real model on a played 5-player game, ~25 ms per pair in Node). |
 | 2026-11-27 | P11: leaderboards + awards (§10 Leaderboards). The host computes them with the P4 engine and publishes `standings` (names, totals only) to every view. Finished screen order: award cards, Best Preservers, Best Saboteurs (two stacked cards, not tabs), then the P10 per-chain list collapsed until P12. Award emojis 🛡️ 😈 🌪️. Test: `tests/standings-stage.test.js`. |
+| 2026-11-27 | P11b: playtest feedback (§10 Playtest feedback), added before P12 for playtesting. A sheet over the game instead of a separate screen, so players return exactly where they were. Stored in Firebase `feedback/` (outlives games), readable by any signed-in phone: the user accepted that, nothing is sensitive. The backlog is `docs/BACKLOG.md`; `npm run feedback` only prints, triage is done together in a session. |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |

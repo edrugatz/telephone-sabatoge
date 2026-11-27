@@ -1,34 +1,38 @@
-## P11 plan: Leaderboards + awards. I need your OK before I start
+The 💬 feedback button is built, but players can't send feedback yet: you first need to publish the updated database rules in Firebase (step 1 below).
 
-**Data (host, `js/game/host.js`)**
-- New `standings(state)`: once scoring is `done`, it runs `scoreGame()` (P4) on the scored transformations and returns names instead of ids:
-  - `awards: [{ id, title, description, winners: [names], value }]` (only the awards P4 actually gives)
-  - `preservers: [{ name, value, rank }]`, where value is the meaning lost (lower is better)
-  - `saboteurs: [{ name, value, rank, uses, perUse }]`
-- Added to every finished view as `view.standings`, so every phone gets the same thing. Sabotage totals only. The rule texts stay hidden until the P12 reveal.
+**Checks so far:**
+- All 161 logic tests pass, including 11 new feedback tests.
+- The preview loads with no errors.
+- `npm run feedback` signs in and reaches Firebase, then gets "Permission denied". That's expected until the rules are published.
 
-**Texts (`js/ui/standings-view.js`, no DOM so tests can check it)**
-- `awardCards(standings, me)`: 🛡️ Guardian of Meaning, 😈 Master Saboteur, 🌪️ Agent of Chaos. Each card has the winner(s), a one-line reason, the value, and "🎉 That's you!" when you won.
-- `boardRows(...)`: shows the rank with 🥇🥈🥉, the name and the value. Your own row is highlighted. Tied players share a rank.
-  - Preservers row: "12.3 lost"
-  - Saboteurs row: "84.0 damage · 3 rules · 28.0 per rule" (or "no rules used")
+## What players get
+- 💬 A button in the header next to the game code, on every screen.
+- 📝 It opens a sheet over the game. They pick 🐛 Bug / 😕 Confusing / 💡 Idea / ❤️ Like and type a comment (up to 1000 characters).
+- 📍 The sheet shows where they are (e.g. "Task · round 3 · 🎨 drawing"). That's saved with the comment, along with the game code, their name, host or not, player count, phone/browser and the last 5 errors.
+- 🔙 **Send** shows a "Thanks! 🙏" toast, the sheet closes, and they're back exactly where they were. The game keeps running underneath while the sheet is open, and their typed sentences are kept. If sending fails, their comment stays in the box so they can try again.
 
-**Finished screen (`finished.js`, `css/game.css`)**
-- Once the scores are in, the order is: 🏆 the 3 award cards, then a **Best Preservers** card, then a **Best Saboteurs** card. These are two stacked cards, not tabs, so it's simpler on a phone.
-- The current per-chain score list moves into a collapsed "📜 Chain scores" section. P12 will replace it with the reveal.
+## The backlog
+- 📥 Every comment is saved in Firebase under `feedback/`, outside the games, so it stays after a game is closed.
+- 📋 `npm run feedback` lists the comments that aren't in `docs/BACKLOG.md` yet. In a session I run it, add them under 🆕 New, and we go through them together: ✅ accepted → 🔧 done, or ❌ rejected with a reason.
 
-**Edge cases**
-- Ties share a rank and an award, as in P4 (equal to 0.1).
-- No damage from any rule → no Master Saboteur.
-- Everyone tied → no Agent of Chaos.
-- No standings until scoring is done. A host reload rebuilds them from the saved measurements.
+## Files
+- `js/ui/feedback.js` (new): builds the report, checks it, keeps the error log and formats backlog entries
+- `js/ui/feedback-sheet.js` (new): the sheet itself
+- `js/ui/main.js`: wires up the button, records where the player is and catches errors
+- `index.html`, `css/game.css`: the button and the sheet's styles
+- `firebase/database.rules.json`: new rules for `feedback/`
+- `scripts/feedback.mjs` (new), `package.json`: the `npm run feedback` command
+- `docs/BACKLOG.md` (new): the backlog
+- `tests/feedback.test.js` (new): the tests
+- `docs/SPEC.md` (P11b ✅, new section and decision), `docs/firebase-setup.md`, `AGENTS.md`
 
-**Test: `tests/standings-stage.test.js` (memory transport + fake model)**
-- Plays a full 8-player game, including one revenge, then compares every phone's `view.standings` to what `scoreGame()` (P4) gives on the same transformations.
-- Checks a tie case and the case where all sentences are identical (no Master Saboteur, no Agent of Chaos).
-- Checks the texts from `standings-view.js`.
-- `npm run test:logic` and `npm test` must still pass.
+## To make it work
+1. In the Firebase console go to **Realtime Database → Rules**, paste the whole contents of `firebase/database.rules.json`, and tap **Publish**.
+2. Approve the commit dialog, so the button goes live on GitHub Pages.
+3. On a phone, open the game, tap 💬, and send a test comment.
+4. Tell me when you've sent it. I'll run `npm run feedback` to check it arrives, and we can start going through the backlog.
 
-Then I set P11 to ✅ in the spec, log the decisions and commit.
-
-**Is this OK, or do you want changes?** For example: tabs instead of stacked cards, hiding the chain list completely, or other award emojis.
+## Possible next steps
+- 📸 Attach an optional screenshot or photo to a comment.
+- 🏁 A short "how was the game?" question on the finished screen.
+- 🎬 P12, the chain reveal, is the next package.

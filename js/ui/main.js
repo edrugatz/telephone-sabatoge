@@ -22,10 +22,58 @@ import { roundTitle } from './pass.js';
 import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
 import { loadScorer, onModelProgress, modelProgress, savedTuning } from './model.js';
+import { buildReport, sendFeedback, createErrorLog } from './feedback.js';
+import { createFeedbackSheet } from './feedback-sheet.js';
 
 const router = createRouter(document.getElementById('screen'));
 const codeChip = document.getElementById('code-chip');
 const store = createSessionStore(safeStorage());
+
+// ---- Playtest feedback (P11b) -------------------------------------------------------------
+// Recent errors go into bug reports. console.error is where main.js reports every caught failure.
+const errorLog = createErrorLog();
+const consoleError = console.error.bind(console);
+console.error = (...args) => {
+  errorLog.add(args.map((a) => (a instanceof Error ? `${a.name}: ${a.message}` : String(a))).join(' '));
+  consoleError(...args);
+};
+window.addEventListener('error', (event) => errorLog.add(`Uncaught: ${event.message}`));
+window.addEventListener('unhandledrejection', (event) => errorLog.add(`Unhandled: ${event.reason?.message ?? event.reason}`));
+
+const feedbackSheet = createFeedbackSheet({
+  getContext: feedbackContext,
+  async onSend(kind, text, context) {
+    if (!app.transport) throw new Error('not connected to the internet');
+    const built = buildReport({
+      kind,
+      text,
+      context,
+      errors: errorLog.list(),
+      uid: app.transport.uid,
+      agent: navigator.userAgent,
+      page: location.pathname,
+    });
+    if (!built.ok) throw new Error(built.error);
+    await sendFeedback(app.transport, built.report);
+    toast('Thanks! Feedback sent 🙏');
+  },
+});
+document.getElementById('feedback-btn').addEventListener('click', () => feedbackSheet.open());
+
+/** Where this phone is right now: screen, stage, round, task, game and player. */
+function feedbackContext() {
+  const { view } = app;
+  return {
+    screen: router.current ?? 'loading',
+    stage: view?.stage,
+    round: view?.task?.round ?? view?.round,
+    task: view?.stage === 'playing' ? view?.task?.task : undefined,
+    code: app.client?.code ?? app.session?.code,
+    name: view?.you?.name ?? app.session?.name ?? store.lastName(),
+    host: !!app.host,
+    players: view?.players?.length,
+  };
+}
 
 const app = {
   transport: null,
