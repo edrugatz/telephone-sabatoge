@@ -53,6 +53,15 @@ const cleanText = (text, what) => {
   return text.trim();
 };
 
+/** Longest allowed rule (scheduled or revenge), in characters after trimming. */
+export const MAX_RULE_LENGTH = 80;
+
+const cleanRule = (text, what) => {
+  const clean = cleanText(text, what);
+  if (clean.length > MAX_RULE_LENGTH) fail(`${what} can have at most ${MAX_RULE_LENGTH} characters`, 'text');
+  return clean;
+};
+
 const grid = (rows, cols, value) => Array.from({ length: rows }, () => Array(cols).fill(value));
 
 /** The transformation (drawer, interpreter) that task (r, c) belongs to (r ≥ 1). */
@@ -140,7 +149,7 @@ export function submitRules(game, player, list) {
   }
   const own = list.map((rule) => {
     if (!rule || !RULE_TYPES.includes(rule.type)) fail(`${name}: every rule needs a type (drawing or writing)`, 'rules');
-    return { author: player, type: rule.type, text: cleanText(rule.text, 'A rule') };
+    return { author: player, type: rule.type, text: cleanRule(rule.text, 'A rule') };
   });
   for (const type of RULE_TYPES) {
     if (!own.some((r) => r.type === type)) {
@@ -290,7 +299,7 @@ export function submitRevenge(game, player, text, target) {
   if (!option) fail(`${game.players[target] ?? target} gave no rule to ${game.players[player]} this round`, 'target');
   if (option.reason === 'conflict') fail(`${game.players[player]} is part of ${option.targetName}'s next task`, 'conflict');
   if (option.reason === 'taken') fail(`Someone already took revenge on ${option.targetName} this round`, 'taken');
-  game.revenges.push({ author: player, target, round: option.round, text: cleanText(text, 'The revenge rule') });
+  game.revenges.push({ author: player, target, round: option.round, text: cleanRule(text, 'The revenge rule') });
   return game;
 }
 

@@ -5,10 +5,12 @@
 //   session    { code, role: 'host' | 'player', uid, name, bots: [firebase app names] }
 //   hostBackup the host's last saved state (Host onSave JSON), used by Host.resume when the database has none
 //   name       the last name typed on the home screen
+//   ruleDraft  { code, rules } the rules being typed in the rules stage (P7), so a reload keeps them
 
 import { normalizeCode } from '../sync/transport.js';
+import { normalizeDraft } from './rule-draft.js';
 
-export const KEYS = { session: 'tps.session', backup: 'tps.hostBackup', name: 'tps.name' };
+export const KEYS = { session: 'tps.session', backup: 'tps.hostBackup', name: 'tps.name', draft: 'tps.ruleDraft' };
 export const ROLES = ['host', 'player'];
 
 /** A storage that only lives in memory (tests, or browsers that block localStorage). */
@@ -84,10 +86,24 @@ export function createSessionStore(storage = memoryStorage()) {
       return clean;
     },
 
-    /** Forget the game (session and host backup). The last name is kept. */
+    /** Forget the game (session, host backup, rule draft). The last name is kept. */
     clear() {
       drop(KEYS.session);
       drop(KEYS.backup);
+      drop(KEYS.draft);
+    },
+
+    /** Keep the rules being typed for this game. */
+    saveDraft(code, rules) {
+      const clean = normalizeDraft(rules);
+      if (clean) write(KEYS.draft, JSON.stringify({ code, rules: clean }));
+    },
+
+    /** The rule draft for this game code, or null. */
+    loadDraft(code) {
+      const json = read(KEYS.draft);
+      const saved = json === null ? null : parse(json);
+      return saved?.code === code ? normalizeDraft(saved.rules) : null;
     },
 
     /** Keep the host's state JSON (from Host onSave). */

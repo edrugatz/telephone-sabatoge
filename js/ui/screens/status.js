@@ -1,5 +1,5 @@
 // Simple full-screen states (P6): loading, error with a retry, and the placeholder for stages that
-// get their screens in later packages (rules P7, playing P8–P9, finished P10–P12).
+// get their screens in later packages (playing P8–P9, finished P10–P12).
 
 import { h } from '../dom.js';
 
@@ -20,12 +20,11 @@ export function errorScreen({ title = 'Something went wrong', message, onRetry, 
 }
 
 const STAGE_TEXT = {
-  rules: ['✍️', 'Time to write rules', 'The rule screen arrives in the next update (P7).'],
   playing: ['🎨', 'The game is running', 'Task screens arrive in a later update (P8).'],
   finished: ['🏁', 'The game is over', 'Results arrive in a later update (P10–P12).'],
 };
 
-export function stageScreen({ view, isHost, busy = false, onBackToLobby, onEndGame }) {
+export function stageScreen({ view, isHost, onEndGame }) {
   const [emoji, title, text] = STAGE_TEXT[view.stage] ?? ['⏳', 'Please wait', ''];
   return h(
     'section',
@@ -34,9 +33,6 @@ export function stageScreen({ view, isHost, busy = false, onBackToLobby, onEndGa
     h('h2', { class: 'card-title', text: title }),
     h('p', { class: 'hint', text }),
     h('p', { class: 'hint', text: `${view.players.length} players: ${view.players.join(', ')}` }),
-    isHost && view.stage === 'rules'
-      ? h('button', { class: 'btn btn-ghost btn-block', type: 'button', disabled: busy, text: '← Back to lobby', on: { click: onBackToLobby } })
-      : null,
     isHost ? h('button', { class: 'btn btn-link', type: 'button', text: 'Close this game', on: { click: onEndGame } }) : null,
   );
 }

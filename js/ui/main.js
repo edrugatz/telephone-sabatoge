@@ -15,6 +15,8 @@ import { toast } from './dom.js';
 import { inviteLink } from './config.js';
 import { homeScreen } from './screens/home.js';
 import { lobbyScreen, BOT_TARGET } from './screens/lobby.js';
+import { createRulesScreen } from './screens/rules.js';
+import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
 
 const router = createRouter(document.getElementById('screen'));
@@ -32,6 +34,10 @@ const app = {
   leaving: false,
   cancelJoin: null,
   testing: { open: false, status: '' },
+  // Rules stage (P7)
+  rulesScreen: null,
+  ruleDraft: null,
+  rulesEditing: false,
 };
 
 function safeStorage() {
@@ -163,7 +169,10 @@ function detach() {
   app.client?.close();
   app.host?.stop();
   app.bots?.close();
-  Object.assign(app, { session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' } });
+  Object.assign(app, {
+    session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' },
+    rulesScreen: null, ruleDraft: null, rulesEditing: false,
+  });
 }
 
 function leaveToHome(notice) {
@@ -199,9 +208,75 @@ function render() {
         onFill: () => botAction(fillBots),
       },
     }));
+  } else if (view.stage === 'rules') {
+    showRules(view, isHost);
   } else {
-    router.show('stage', stageScreen({ view, isHost, busy: app.busy, onBackToLobby: () => hostAction(() => app.host.backToLobby()), onEndGame: endGame }));
+    router.show('stage', stageScreen({ view, isHost, onEndGame: endGame }));
   }
+}
+
+// ---- Rules stage (P7) -----------------------------------------------------------------
+
+function showRules(view, isHost) {
+  app.ruleDraft ??= store.loadDraft(view.code) ?? emptyDraft();
+  const state = {
+    view,
+    isHost,
+    draft: app.ruleDraft,
+    editing: app.rulesEditing || !(view.rules?.mine?.length > 0),
+    busy: app.busy,
+    testing: { open: app.testing.open, status: app.testing.status },
+  };
+  const fresh = router.current !== 'rules' || !app.rulesScreen;
+  if (fresh) {
+    app.rulesScreen = createRulesScreen({
+      onDraftChange: (draft) => {
+        app.ruleDraft = draft;
+        store.saveDraft(view.code, draft);
+      },
+      onSend: sendRules,
+      onEdit: editRules,
+      onStart: () => hostAction(() => app.host.start()),
+      onBackToLobby: () => {
+        if (confirm("Back to the lobby? Everyone's rules will be dropped.")) hostAction(() => app.host.backToLobby());
+      },
+      onEndGame: endGame,
+      testing: {
+        onToggle: (open) => (app.testing.open = open),
+        onBotRules: () => botAction(botsWriteRules),
+      },
+    });
+  }
+  app.rulesScreen.update(state);
+  if (fresh) router.show('rules', app.rulesScreen.element);
+}
+
+async function sendRules() {
+  if (app.busy || !app.client) return;
+  app.busy = true;
+  render();
+  try {
+    const result = await app.client.submitRules(draftToRules(app.ruleDraft));
+    if (result.ok) {
+      app.rulesEditing = false;
+      toast('Rules sent 📨');
+    } else {
+      toast(result.message);
+    }
+  } finally {
+    app.busy = false;
+    if (app.client) render();
+  }
+}
+
+function editRules() {
+  const mine = app.view?.rules?.mine;
+  if (mine?.length) {
+    app.ruleDraft = mine.map(({ type, text }) => ({ type, text }));
+    store.saveDraft(app.view.code, app.ruleDraft);
+  }
+  app.rulesEditing = true;
+  render();
 }
 
 async function hostAction(fn) {
@@ -293,6 +368,13 @@ async function fillBots() {
     added++;
   }
   app.testing.status = `Added ${added} bot${added === 1 ? '' : 's'} 🤖`;
+}
+
+async function botsWriteRules() {
+  app.testing.status = 'Bots are writing rules…';
+  render();
+  const sent = await app.bots.writeRules(app.host.state.seats, app.view?.rules?.missing ?? []);
+  app.testing.status = sent ? `${sent} bot${sent === 1 ? '' : 's'} wrote rules 🤖` : 'No bot is missing rules';
 }
 
 boot();

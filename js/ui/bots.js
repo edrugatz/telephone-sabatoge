@@ -7,6 +7,7 @@
 //
 //   const bots = new Bots({ connect, code, apps: session.bots, onApps: (apps) => save(apps) });
 //   await bots.add(host.state.seats);   // → { app, uid, name }
+//   await bots.writeRules(host.state.seats, view.rules.missing);   // → number of bots that sent rules
 
 import { Client } from '../game/client.js';
 import { GameError } from '../game/game.js';
@@ -18,13 +19,61 @@ export const BOT_NAMES = [
 ];
 export const BOT_APP_PREFIX = 'bot-';
 
+export const BOT_RULES = {
+  draw: [
+    'No straight lines', 'Include a tiny animal', 'Draw with your other hand', 'Everything has a face',
+    'Only circles', 'Hide a banana somewhere', 'Draw it upside down', 'At most 5 lines', 'Add some weather',
+    'Eyes closed for the first line',
+  ],
+  write: [
+    'Exactly seven words', 'No letter "E"', 'Make it rhyme', 'Start with "Once"', 'Mention a colour',
+    'Ask it as a question', 'Use one very fancy word', 'No word longer than 6 letters', 'Write it as a headline',
+    'Include a number',
+  ],
+};
+
+/** 3 different random bot rules: one drawing, one writing, and one of either. */
+export function botRules(random = Math.random) {
+  const pick = (list) => list[Math.floor(random() * list.length)];
+  const rules = [{ type: 'draw', text: pick(BOT_RULES.draw) }, { type: 'write', text: pick(BOT_RULES.write) }];
+  const type = random() < 0.5 ? 'draw' : 'write';
+  const left = BOT_RULES[type].filter((text) => !rules.some((rule) => rule.text === text));
+  rules.push({ type, text: pick(left) });
+  return rules;
+}
+
 export class Bots {
-  constructor({ connect, code, apps = [], onApps }) {
+  constructor({ connect, code, apps = [], onApps, random = Math.random }) {
     this.connect = connect;
     this.code = code;
     this.apps = [...apps];
     this.onApps = onApps;
+    this.random = random;
     this.clients = new Map(); // app name → Client
+  }
+
+  /**
+   * Every seated bot whose name is in `missing` sends 3 random rules. `seats` = the host's seats.
+   * Works after a reload too (the bots' clients are reopened). Resolves with the number of bots that sent
+   * rules; throws GameError when the host refuses them.
+   */
+  async writeRules(seats, missing) {
+    const wanted = new Set(missing.map((name) => name.toLowerCase()));
+    let sent = 0;
+    for (const app of this.apps) {
+      const transport = await this.connect(app);
+      const seat = seats.find((s) => s.uid === transport.uid);
+      if (!seat || !wanted.has(seat.name.toLowerCase())) continue;
+      let client = this.clients.get(app);
+      if (!client) {
+        client = await Client.open({ transport, code: this.code });
+        this.clients.set(app, client);
+      }
+      const result = await client.submitRules(botRules(this.random));
+      if (!result.ok) throw new GameError(`${seat.name}: ${result.message}`, result.reason);
+      sent++;
+    }
+    return sent;
   }
 
   /** A bot app that isn't seated yet: an existing one first, else a new one. */

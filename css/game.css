@@ -150,6 +150,40 @@
 .testing summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
 .testing[open] { display: flex; flex-direction: column; gap: 12px; }
 
+/* Rules (P7) */
+.rule-card { gap: 10px; }
+.rule-card .row-between { flex-wrap: wrap; }
+.rule-card .form-error { flex: 1; }
+.rule-card .count { margin-left: auto; }
+.count-over { color: var(--danger); font-weight: 700; }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.type-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.type-option {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.type-option[aria-pressed="true"] { background: var(--pop); color: #fff; }
+.rule-summary { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.rule-summary li { display: flex; align-items: baseline; gap: 10px; overflow-wrap: anywhere; }
+.rule-summary .tag { flex-shrink: 0; }
+.player.is-ready .player-avatar { border-color: var(--ok); }
+
 /* Loading */
 .spinner {
   width: 40px;

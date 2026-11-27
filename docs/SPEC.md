@@ -5,7 +5,7 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P6 done: game logic, Firebase sync, app shell + home + lobby; P7 next).** Existing code: the
+Status: **in progress (P1–P7 done: game logic, Firebase sync, app shell + home + lobby, rule submission; P8 next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -42,7 +42,8 @@ Group size: minimum 5, designed to shine at 8+.
 ## 4. Sabotage rules
 
 - Before the game, every player submits **3 rules**, each tagged with a task type: **drawing** or **writing**.
-- Rules: short, followable during a task, playful, not offensive, not targeted at a player.
+- Rules: short (**at most 80 characters**, `MAX_RULE_LENGTH`, revenge rules too), followable during a task,
+  playful, not offensive, not targeted at a player.
   Examples: *no straight lines* (drawing), *include a tiny animal* (drawing),
   *exactly seven words* (writing), *no letter "E"* (writing).
 - Each rule stores its author and task type.
@@ -276,7 +277,7 @@ Three awards:
 ### App shell (`index.html`, `js/ui/`, P6)
 
 - `main.js` is the controller: connect Firebase → restore the session → show the screen for the view's `stage`
-  (`lobby` → lobby; `rules` / `playing` / `finished` → placeholder until P7+). `router.js` is state-driven
+  (`lobby` → lobby; `rules` → rules screen; `playing` / `finished` → placeholder until P8+). `router.js` is state-driven
   (`show(name, element)`), not URL-driven. Screens are functions returning an element (`screens/*.js`, `dom.js` `h()`).
 - **Session** (`session.js`, localStorage, no DOM): `tps.session` `{ code, role: host|player, uid, name, bots }`,
   `tps.hostBackup` (last `onSave` JSON, used by `Host.resume` when the database has no host state), `tps.name`
@@ -296,6 +297,21 @@ Three awards:
   user, because the database rules only accept messages from their own uid. App names are kept in the session,
   so bots keep their seats after a reload; a removed bot's app is reused. Host lobby → collapsed "🧪 Testing":
   Add bot / Fill to 8.
+
+### Rule submission (`js/ui/screens/rules.js`, `js/ui/rule-draft.js`, P7)
+
+- Every player (host too) fills 3 rule cards: a 🎨 Drawing / ✍️ Writing toggle (default draw / write / draw) and a
+  text box with an 80-character counter. `checkDraft` checks on the phone (no empty rule, ≤ 80 characters, ≥ 1 of
+  each type) with the same limits the host applies; errors show under each card.
+- **Send my rules** → "✅ Your rules are in" + **Edit my rules**: a player can change their rules until the host
+  starts (sending again replaces them).
+- The typed draft lives in memory and in localStorage (`tps.ruleDraft` `{ code, rules }`), so a reload keeps it.
+  The screen is a component (`createRulesScreen` → `{ element, update }`): live view updates only redraw the
+  progress part, never the inputs, so typing isn't interrupted when someone else sends.
+- Live "Rules in n / N" list (✅ ready / ✍️ writing…). Host: **Start the game 🎬** stays disabled until everyone
+  is in, **← Back to lobby** (confirm: drops all rules), 🧪 Testing → **Bots write rules** (`bots.writeRules`:
+  3 random rules from `BOT_RULES` for each bot still missing, reopening bot clients after a reload).
+  Player: "Waiting for the host to start".
 
 ## 11. Design philosophy
 
@@ -332,7 +348,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 |---|---------|-------------|------|--------|
 | P5b | Sync layer | Transport interface with a Firebase and an in-memory implementation; host loop (inbox → `game.js` → per-player views); join by game code; Firebase security rules file; setup steps for the user's Firebase project | Node, in-memory transport: 8 clients join, play a full game through messages; host reload mid-game resumes; duplicate/late/invalid messages handled; a view never holds another player's rules | ✅ |
 | P6 | App shell + home + lobby | Move the current scorer page to `tune.html`; new `index.html` game shell with screen router, home (create / join with code + name) and live lobby; session (uid, code, role) in localStorage | Host creates a game, 7 more players join (bot button for testing on one phone), reload on either side and the lobby is still there; the tune page still works | ✅ |
-| P7 | Rule submission | 3 rules per player with a type toggle; validation | Every player can enter rules; Start stays blocked until all are in | ⬜ |
+| P7 | Rule submission | 3 rules per player with a type toggle; validation | Every player can enter rules; Start stays blocked until all are in | ✅ |
 | P8 | Preparation + task screen | Generate and validate the schedule (with a spinner and error text); task screen with round, task, sentence, rule + author (or "No rule this time"), timer | Start an 8-player game; each player's round-1 task shows the correct rule or none | ⬜ |
 | P9 | Interpretation + pass + round progression | Sentence input, "done & passed" confirmation, "Pass your paper to X", next round | Play a full game through the UI with dummy input; it ends on interpretations | ⬜ |
 | P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt | ⬜ |
@@ -400,4 +416,5 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P5b: sync layer (§6 Sync). Host phone is the authority; messages go through an inbox and are applied to a copy of the state, then state + views + inbox deletion are written in one atomic update. Views, public summary and host state are stored as JSON strings (Firebase reshapes arrays). Security rules make each view private and the host state host-only, so secret rules really are hidden. `submit`/`revenge` messages carry the round, so a late duplicate can't count for the next round. The host plays through its own client. Max 14 players, names ≤ 20 chars. Firebase SDK 13.4.0 from gstatic. The rules themselves are checked by hand in the Rules Playground (`docs/firebase-setup.md`); the emulator needs Java. |
 | 2026-11-27 | Open question 5: the sentence-similarity page stays as a debug/tuning page, moved to `tune.html` in P6. |
 | 2026-11-27 | P6: app shell (§10 App shell). Scorer page moved to `tune.html` (still `js/app.js`); game is `index.html` + `js/ui/`. State-driven router, session in localStorage with a host backup. Test bots are real Firebase users (named apps `bot-N`), not an offline mode, so they exercise the real sync; the Testing section is always shown to the host, collapsed. `connectFirebase(config, { name })` supports several apps per page. Tests: `tests/session.test.js`, `tests/bots.test.js` (memory transport: 7 bots join, host and player reload). |
+| 2026-11-27 | P7: rule submission screen (§10 Rule submission). Rules (and revenge rules) are at most 80 characters, enforced by game.js on the host and checked on the phone. Players can edit their rules until the host starts. The draft is kept outside the DOM (memory + localStorage) and live updates don't redraw the inputs. Bots write random built-in rules from the Testing section. Test: `tests/rules-stage.test.js`. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |
