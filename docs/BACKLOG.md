@@ -18,3 +18,21 @@ _Nothing yet. Run `npm run feedback`._
 ## 🔧 Done
 
 ## ❌ Rejected
+
+### FB-1q0G6r · 🐛 Bug · ❌ rejected
+- **When:** 2026-11-27 17:08 UTC · **Who:** Ethan · **Game:** not in a game
+- **Where:** Home
+- **Phone:** Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36
+- **Decision:** ❌ test entry (P11b end-to-end check), nothing to do.
+
+> Test bug
+<!-- feedback-id: -P7Syah-tBaaM31q0G6r -->
+
+### FB-6shFVg · 😕 Confusing · ❌ rejected
+- **When:** 2026-11-27 17:08 UTC · **Who:** Ethan (host) · **Game:** GYQPA, 8 players
+- **Where:** Rules
+- **Phone:** Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36
+- **Decision:** ❌ test entry (P11b end-to-end check), nothing to do.
+
+> Test 1
+<!-- feedback-id: -P7SygjIYNZzGe6shFVg -->
