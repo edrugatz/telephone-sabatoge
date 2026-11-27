@@ -2,7 +2,7 @@
 // `npm run feedback` script prints. No DOM, no Node APIs: shared by the browser, the script and the tests.
 //
 // Reports go to Firebase `feedback/{pushId}` (outside the games, so they outlive them):
-//   { kind, text, at, uid, screen, stage?, round?, task?, code?, name?, host, players?, errors?, agent?, page? }
+//   { kind, text, at, uid, screen, stage?, round?, task?, code?, name?, host, players?, errors?, agent?, page?, build? }
 
 export const FEEDBACK_PATH = 'feedback';
 export const MAX_FEEDBACK_LENGTH = 1000;
@@ -67,7 +67,7 @@ export function contextLabel(context = {}) {
  * The record to push. Returns { ok: true, report } or { ok: false, error }.
  * Firebase drops undefined fields, so missing context simply isn't stored.
  */
-export function buildReport({ kind, text, context, errors = [], uid, now = Date.now(), agent, page }) {
+export function buildReport({ kind, text, context, errors = [], uid, now = Date.now(), agent, page, build }) {
   const error = checkFeedback(text);
   if (error) return { ok: false, error };
   if (!(kind in FEEDBACK_KINDS)) return { ok: false, error: 'Pick what kind of feedback it is' };
@@ -81,6 +81,7 @@ export function buildReport({ kind, text, context, errors = [], uid, now = Date.
     errors: clip(errors.slice(-MAX_ERRORS).join(' | '), 1500),
     agent: clip(agent, 300),
     page: clip(page, 200),
+    build: clip(build, 40),
   };
   for (const key of Object.keys(report)) if (report[key] === undefined) delete report[key];
   return { ok: true, report };
@@ -141,6 +142,7 @@ export function formatEntry(id, report) {
     `- **When:** ${formatTime(r.at)} · **Who:** ${who} · **Game:** ${game}`,
     `- **Where:** ${contextLabel(r)}`,
     r.errors ? `- **Errors:** \`${r.errors.replaceAll('`', "'")}\`` : null,
+    r.build ? `- **Build:** ${r.build}` : null,
     r.agent ? `- **Phone:** ${r.agent}` : null,
     '- **Decision:** _to discuss_',
     '',

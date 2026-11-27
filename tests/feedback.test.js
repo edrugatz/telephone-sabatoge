@@ -26,12 +26,12 @@ test('the context label says where the player was', () => {
 });
 
 test('a report holds the text, kind, sender and context', () => {
-  const built = buildReport({ kind: 'confusing', text: '  Who do I pass to?  ', context: TASK_CONTEXT, uid: 'u1', now: 1000, agent: 'Phone', page: '/' });
+  const built = buildReport({ kind: 'confusing', text: '  Who do I pass to?  ', context: TASK_CONTEXT, uid: 'u1', now: 1000, agent: 'Phone', page: '/', build: '2026-11-27.2' });
   assert.equal(built.ok, true);
   assert.deepEqual(built.report, {
     kind: 'confusing', text: 'Who do I pass to?', at: 1000, uid: 'u1',
     screen: 'task', stage: 'playing', round: 3, task: 'draw', code: 'ABCDE', name: 'Ana', host: true, players: 8,
-    agent: 'Phone', page: '/',
+    agent: 'Phone', page: '/', build: '2026-11-27.2',
   });
 });
 
@@ -86,12 +86,13 @@ test('the backlog skips entries it already has, and lists the rest oldest first'
 });
 
 test('a backlog entry has the kind, context, quote and id mark', () => {
-  const { report } = buildReport({ kind: 'bug', text: 'Timer froze\nat 0', context: TASK_CONTEXT, uid: 'u1', now: Date.UTC(2026, 10, 27, 14, 3), errors: ['TypeError: x'] });
+  const { report } = buildReport({ kind: 'bug', text: 'Timer froze\nat 0', context: TASK_CONTEXT, uid: 'u1', now: Date.UTC(2026, 10, 27, 14, 3), errors: ['TypeError: x'], build: '2026-11-27.2' });
   const entry = formatEntry('-OAbcdefXYZ123', report);
   assert.match(entry, /^### FB-XYZ123 · 🐛 Bug · 🆕 new$/m);
   assert.match(entry, /\*\*When:\*\* 2026-11-27 14:03 UTC · \*\*Who:\*\* Ana \(host\) · \*\*Game:\*\* ABCDE, 8 players/);
   assert.match(entry, /\*\*Where:\*\* Task · round 3 · 🎨 drawing/);
   assert.match(entry, /\*\*Errors:\*\* `TypeError: x`/);
+  assert.match(entry, /^- \*\*Build:\*\* 2026-11-27\.2$/m);
   assert.match(entry, /^> Timer froze\n> at 0$/m);
   assert.deepEqual([...backlogIds(entry)], ['-OAbcdefXYZ123']);
 });

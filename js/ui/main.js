@@ -24,6 +24,10 @@ import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
 import { loadScorer, onModelProgress, modelProgress, savedTuning } from './model.js';
 import { buildReport, sendFeedback, createErrorLog } from './feedback.js';
 import { createFeedbackSheet } from './feedback-sheet.js';
+import { BUILD } from './build.js';
+
+const buildId = document.getElementById('build-id');
+if (buildId) buildId.textContent = `build ${BUILD}`;
 
 const router = createRouter(document.getElementById('screen'));
 const codeChip = document.getElementById('code-chip');
@@ -52,6 +56,7 @@ const feedbackSheet = createFeedbackSheet({
       uid: app.transport.uid,
       agent: navigator.userAgent,
       page: location.pathname,
+      build: BUILD,
     });
     if (!built.ok) throw new Error(built.error);
     await sendFeedback(app.transport, built.report);

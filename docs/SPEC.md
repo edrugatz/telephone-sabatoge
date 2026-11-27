@@ -417,7 +417,9 @@ Three awards:
   keeps the text and shows the reason. The draft lives in memory until sent.
 - **Context**, taken when the sheet opens: `screen` (router name), `stage`, `round`, `task` (playing only), game `code`,
   `name`, `host`, `players`; plus `at`, `uid`, the **last 5 errors** (`console.error`, uncaught errors, rejections), user
-  agent and page. `buildReport()` drops empty fields.
+  agent, page and `build` (the build id). `buildReport()` drops empty fields.
+- **Build id**: `BUILD` in `js/ui/build.js` (`YYYY-MM-DD.n`), shown small at the bottom of the game page and stored with
+  every report, so a tester can tell whether their phone loaded the latest version. Bumped by hand with every site commit.
 - **Storage**: Firebase `feedback/{pushId}`, outside `games/`. Rules: any signed-in phone can add one (its own `uid`,
   never overwrite) and read them all (nothing in the game is sensitive). Kinds, lengths and field types are checked.
 - **Backlog**: `npm run feedback` (`scripts/feedback.mjs`) signs in anonymously over REST and prints the entries not yet in
@@ -534,5 +536,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P10: model scoring (§10 Scoring). Only the host phone loads TinyBERT (in the background during the game) and scores at the end; results and progress are published to every view. The curve comes from the host phone's `tune.html` settings (default if none) and is fixed when scoring starts. Raw logits are kept per transformation. Progress is throttled to one publish per 750 ms, and a host reload resumes without re-measuring. Tests: `tests/scoring-stage.test.js` (fake model), `npm test` (real model on a played 5-player game, ~25 ms per pair in Node). |
 | 2026-11-27 | P11: leaderboards + awards (§10 Leaderboards). The host computes them with the P4 engine and publishes `standings` (names, totals only) to every view. Finished screen order: award cards, Best Preservers, Best Saboteurs (two stacked cards, not tabs), then the P10 per-chain list collapsed until P12. Award emojis 🛡️ 😈 🌪️. Test: `tests/standings-stage.test.js`. |
 | 2026-11-27 | P11b: playtest feedback (§10 Playtest feedback), added before P12 for playtesting. A sheet over the game instead of a separate screen, so players return exactly where they were. Stored in Firebase `feedback/` (outlives games), readable by any signed-in phone: the user accepted that, nothing is sensitive. The backlog is `docs/BACKLOG.md`; `npm run feedback` only prints, triage is done together in a session. |
+| 2026-11-27 | Build id in the footer + feedback reports (§10 Playtest feedback). A hand-bumped constant, since the site has no build step (no commit hash available at runtime without CI). |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |
