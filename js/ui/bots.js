@@ -9,6 +9,7 @@
 //   await bots.add(host.state.seats);   // → { app, uid, name }
 //   await bots.writeRules(host.state.seats, view.rules.missing);   // → number of bots that sent rules
 //   await bots.doTasks(host.state.seats, view.waitingFor, view.round);   // → number of bots that finished
+//   await bots.takeRevenge(host.state.seats, view.round, (p) => revengeOptions(game, p));   // → number that took revenge
 
 import { Client } from '../game/client.js';
 import { GameError } from '../game/game.js';
@@ -86,6 +87,27 @@ export class Bots {
       const result = await client.send('submit', { round, text: botSentence(this.random) });
       if (!result.ok) throw new GameError(`${seat.name}: ${result.message}`, result.reason);
     });
+  }
+
+  /**
+   * Testing revenge (P9b): every seated bot that can take revenge in `round` writes a random rule of the
+   * right type. `optionsOf(player)` = revengeOptions for that seat index (the host's game state), asked
+   * again before each bot, so a target taken by an earlier bot is skipped. Resolves with the number of
+   * bots that took revenge.
+   */
+  async takeRevenge(seats, round, optionsOf) {
+    let count = 0;
+    await this.eachSeated(seats, seats.map((seat) => seat.name), async (client, seat) => {
+      const { reason, options } = optionsOf(seats.indexOf(seat));
+      const option = reason ? null : options.find((o) => o.ok);
+      if (!option) return;
+      const list = BOT_RULES[option.type];
+      const text = list[Math.floor(this.random() * list.length)];
+      const result = await client.send('revenge', { round, text, target: option.target });
+      if (result.ok) count++;
+      else if (result.reason !== 'taken') throw new GameError(`${seat.name}: ${result.message}`, result.reason);
+    });
+    return count;
   }
 
   /** Run fn(client, seat) for each seated bot named in `names`, reopening clients after a reload. */

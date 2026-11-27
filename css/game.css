@@ -244,6 +244,21 @@
 .chip.is-busy { color: var(--muted); }
 .chip.is-you { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* Revenge (P9b) */
+.btn-danger { background: var(--danger); color: #fff; flex: 1; }
+.btn-danger:active { opacity: 0.85; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.revenge-card { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--card)); }
+.revenge-card .card-title, .revenge-card .hint { overflow-wrap: anywhere; }
+.revenge-card .row-between { flex-wrap: wrap; }
+.revenge-card .form-error { flex: 1; }
+.revenge-card .count { margin-left: auto; }
+.revenge-card .type-toggle { align-self: flex-start; flex-wrap: wrap; }
+.revenge-card .type-option[aria-pressed="true"] { background: var(--danger); }
+.revenge-actions { gap: 10px; }
+.revenge-actions .btn-ghost { flex: 0 0 auto; }
+.revenge-card.is-sent { border-style: dashed; }
+
 /* Loading */
 .spinner {
   width: 40px;

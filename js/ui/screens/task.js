@@ -7,13 +7,20 @@
 // per done/not-done, and update() only redraws the live part (who is still busy, the host's Next round).
 // The typed sentence lives outside the DOM (onDraftChange), so a reload or a view update keeps it.
 //
-//   const screen = createTaskScreen({ onDraftChange, onSubmit, onNextRound, onEndGame, testing });
-//   screen.update({ view, isHost, draft, busy, testing: { open, status } });
+// P9b: a 🔥 revenge card under the task (and under the waiting card) when revengePrompt(view) offers one.
+// It has its own slot and key, so live updates don't redraw its text box; its draft and open/skipped
+// state live in the controller (state.revenge).
+//
+//   const screen = createTaskScreen({ onDraftChange, onSubmit, onNextRound, onEndGame, revenge, testing });
+//     revenge: { onOpen(), onSkip(), onDraft(text, target), onSend(text, target) }
+//   screen.update({ view, isHost, draft, busy, revenge: { open, skipped, text, target }, testing: { open, status } });
 //   router.show('task', screen.element);
 
 import { h } from '../dom.js';
 import { secondsLeft, formatSeconds } from '../timer.js';
 import { passInfo, waitingText, roundLabel, roundProgress } from '../pass.js';
+import { revengePrompt, revengeSent, revengeTexts, revengeSentTexts, checkRevenge } from '../revenge.js';
+import { MAX_RULE_LENGTH } from '../../game/game.js';
 
 const TASKS = {
   write: {
@@ -37,11 +44,14 @@ const TASKS = {
 
 export function createTaskScreen(handlers) {
   const taskSlot = h('div', { class: 'stack' });
+  const revengeSlot = h('div', { class: 'stack' });
   const liveSlot = h('div', { class: 'stack' });
-  const element = h('section', { class: 'screen stack' }, taskSlot, liveSlot);
+  const element = h('section', { class: 'screen stack' }, taskSlot, revengeSlot, liveSlot);
 
   let key = null;
   let built = null; // { timer, submitButton, input }
+  let revengeKey = null;
+  let revengeBuilt = null; // { sendButton }
   let latest = null;
   let interval = null;
 
@@ -78,12 +88,156 @@ export function createTaskScreen(handlers) {
       taskSlot.replaceChildren(built.element);
     }
     if (built.submitButton) built.submitButton.disabled = state.busy;
+    updateRevenge(state);
     tick();
     startTicking();
     liveSlot.replaceChildren(...liveSection(state, handlers));
   }
 
+  function updateRevenge(state) {
+    const { view } = state;
+    const ui = state.revenge ?? {};
+    const prompt = revengePrompt(view);
+    const sent = revengeSent(view);
+    const mode = sent ? 'sent' : !prompt || ui.skipped ? 'none' : ui.open ? 'open' : 'ask';
+    const targets = prompt ? prompt.targets.map((t) => t.target).join(',') : '';
+    const nextKey = `${view.round}:${mode}:${targets}`;
+    if (nextKey !== revengeKey) {
+      revengeKey = nextKey;
+      revengeBuilt =
+        mode === 'sent' ? { element: sentCard(sent) }
+        : mode === 'ask' ? askCard(prompt, handlers.revenge)
+        : mode === 'open' ? revengeForm(prompt, ui, handlers.revenge)
+        : null;
+      revengeSlot.replaceChildren(...(revengeBuilt ? [revengeBuilt.element] : []));
+    }
+    if (revengeBuilt?.sendButton) revengeBuilt.sendButton.disabled = state.busy;
+  }
+
   return { element, update };
+}
+
+// ---- Revenge (P9b) -----------------------------------------------------------------------
+
+function askCard(prompt, { onOpen, onSkip }) {
+  const texts = revengeTexts(prompt, prompt.targets[0].name);
+  const element = h(
+    'div',
+    { class: 'card stack revenge-card' },
+    h('p', { class: 'card-title', text: texts.title }),
+    h('p', { class: 'hint', text: texts.why }),
+    h(
+      'div',
+      { class: 'row-between revenge-actions' },
+      h('button', { class: 'btn btn-ghost', type: 'button', text: texts.skip, on: { click: onSkip } }),
+      h('button', { class: 'btn btn-danger', type: 'button', text: texts.open, on: { click: onOpen } }),
+    ),
+  );
+  return { element };
+}
+
+function revengeForm(prompt, ui, { onDraft, onSend, onSkip }) {
+  let text = ui.text ?? '';
+  let target = prompt.targets.some((t) => t.target === ui.target) ? ui.target : prompt.targets[0].target;
+  const nameOf = (id) => prompt.targets.find((t) => t.target === id).name;
+
+  const title = h('p', { class: 'card-title' });
+  const ask = h('p', { class: 'hint' });
+  const counter = h('span', { class: 'count' });
+  const error = h('p', { class: 'form-error', role: 'alert', hidden: true });
+  const input = h('input', {
+    class: 'input',
+    type: 'text',
+    maxlength: String(MAX_RULE_LENGTH),
+    autocomplete: 'off',
+    enterkeyhint: 'send',
+    'aria-label': 'Revenge rule',
+    value: text,
+  });
+  const sendButton = h('button', { class: 'btn btn-danger btn-block', type: 'submit' });
+
+  const choices = prompt.targets.length > 1
+    ? prompt.targets.map((t) =>
+        h('button', {
+          class: 'type-option',
+          type: 'button',
+          text: t.name,
+          on: {
+            click: () => {
+              target = t.target;
+              refresh();
+              onDraft(text, target);
+            },
+          },
+        }),
+      )
+    : [];
+
+  function refresh() {
+    const texts = revengeTexts(prompt, nameOf(target));
+    title.textContent = prompt.targets.length > 1 ? '🔥 Revenge on…' : `🔥 Revenge on ${nameOf(target)}`;
+    ask.textContent = texts.ask;
+    input.placeholder = texts.placeholder;
+    sendButton.textContent = texts.send;
+    choices.forEach((button, i) => button.setAttribute('aria-pressed', String(prompt.targets[i].target === target)));
+    const length = text.trim().length;
+    counter.textContent = `${length}/${MAX_RULE_LENGTH}`;
+    counter.classList.toggle('count-over', length > MAX_RULE_LENGTH);
+  }
+
+  function showError(message) {
+    error.textContent = message ?? '';
+    error.hidden = !message;
+    input.setAttribute('aria-invalid', String(!!message));
+  }
+
+  input.addEventListener('input', () => {
+    text = input.value;
+    if (text.trim()) showError(null);
+    refresh();
+    onDraft(text, target);
+  });
+
+  refresh();
+  const element = h(
+    'form',
+    {
+      class: 'card stack revenge-card',
+      novalidate: true,
+      on: {
+        submit: (event) => {
+          event.preventDefault();
+          const problem = checkRevenge(text);
+          if (problem) {
+            showError(problem);
+            input.focus();
+            return;
+          }
+          onSend(text.trim(), target);
+        },
+      },
+    },
+    title,
+    choices.length ? h('div', { class: 'type-toggle', role: 'group', 'aria-label': 'Take revenge on' }, choices) : null,
+    h('p', { class: 'hint', text: revengeTexts(prompt, nameOf(target)).why }),
+    ask,
+    input,
+    h('div', { class: 'row-between' }, error, counter),
+    sendButton,
+    h('button', { class: 'btn btn-link', type: 'button', text: 'Not now', on: { click: onSkip } }),
+  );
+  return { element, sendButton, input };
+}
+
+function sentCard(sent) {
+  const texts = revengeSentTexts(sent);
+  return h(
+    'div',
+    { class: 'card stack revenge-card is-sent' },
+    h('p', { class: 'card-title', text: texts.title }),
+    h('p', { class: 'rule-text', text: sent.text }),
+    h('p', { class: 'hint', text: texts.hint }),
+  );
 }
 
 // ---- Task part ---------------------------------------------------------------------------
@@ -262,18 +416,20 @@ function liveSection(state, handlers) {
       text: everyoneDone ? (last ? 'Finish the game 🏁' : 'Next round →') : `Waiting for ${waiting.length} more…`,
       on: { click: handlers.onNextRound },
     }),
-    testingSection({ ...state.testing, ...handlers.testing, busy, waiting }),
+    testingSection({ ...state.testing, ...handlers.testing, busy, waiting, last }),
     h('button', { class: 'btn btn-link', type: 'button', text: 'Close this game', on: { click: handlers.onEndGame } }),
   ];
 }
 
-function testingSection({ open = false, status, onToggle, onBotTasks, busy, waiting }) {
+function testingSection({ open = false, status, onToggle, onBotTasks, onBotRevenge, busy, waiting, last }) {
   const details = h(
     'details',
     { class: 'card testing', open },
     h('summary', { text: '🧪 Testing' }),
     h('p', { class: 'hint', text: 'Bots finish their task with a made-up sentence. Your own task you do yourself.' }),
     h('button', { class: 'btn btn-ghost', type: 'button', disabled: busy || waiting.length === 0, text: '🤖 Bots do their tasks', on: { click: onBotTasks } }),
+    h('p', { class: 'hint', text: 'Every bot that can take revenge writes a random revenge rule (then you see it on your next task).' }),
+    h('button', { class: 'btn btn-ghost', type: 'button', disabled: busy || last, text: '🔥 Bots take revenge', on: { click: onBotRevenge } }),
     status ? h('p', { class: 'hint', role: 'status', text: status }) : null,
   );
   details.addEventListener('toggle', () => onToggle?.(details.open));

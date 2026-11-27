@@ -1,46 +1,26 @@
-## P8 check
-
-P8 is finished in the code. The screens exist, the spec marks it ✅, and all 132 logic tests pass, including `tests/task-stage.test.js`. It is **not committed**, though: you declined the commit, so 13 changed files are still uncommitted. You can commit them from Source Control.
-
-## P9 plan: pass + round progression
-
-You chose **one paper per chain** and **one tap: Done & passed**.
+P9b (revenge rule UI) is done: all 140 logic tests pass, including 5 new ones. I couldn't check it in the preview because the app was in the background.
 
 **Files**
-- `js/ui/pass.js` (new, no DOM): builds the pass and waiting text from `view.task`, so Node can test it:
-  - "📄 Pass your paper to Ben"
-  - What Ben will do next: "Ben will draw your sentence" / "interpret your drawing" / "draw from your sentence"
-  - The last round: "Put your paper on the reveal pile"
-- `js/ui/screens/task.js`:
-  - A pass card on the task screen from the start.
-  - The button becomes "Done & passed to Ben ✅" for drawings and "Send & pass to Ben ✅" for sentences.
-  - On the last round it becomes "Done → reveal pile".
-- **Waiting screen** (after Done replaces the task part):
-  - "✅ Done & passed to Ben", with a smaller pass reminder.
-  - Progress bar n / N, with chips for ✅ done and ✍️ busy players.
-  - "Next: you'll 🔍 interpret. When you get a paper, check your task."
-  - The host keeps Next round / Finish 🏁 and the Testing section.
-- **New round**:
-  - Phones vibrate (`navigator.vibrate`, where the phone supports it) and show a toast "Round 3 · 🎨 Drawing".
-  - The screen scrolls to the top.
-- `js/ui/screens/finished.js` (new): the hand-off to the reveal. It replaces the `finished` placeholder:
-  - "🏁 All chains are done! Bring every paper to the reveal pile."
-  - k rounds, n chains, and "Results come next" (P10–P12).
-  - Host: Close this game.
-- `css/game.css`: pass card, progress bar, chips.
+- `js/ui/revenge.js` (new): decides when to show the prompt and holds its texts and the 80-character check. Targets that aren't allowed are hidden without saying why, because the reason could give away who passes to whom.
+- `js/ui/screens/task.js`: the 🔥 revenge card. It sits in its own slot below the Done button, and under the "Done & passed" card after Done, so live updates never wipe what you're typing.
+- `js/ui/main.js`: sends the revenge, handles Skip, keeps the draft, and wires the new bot button.
+- `js/ui/session.js`: a revenge draft (`tps.revengeDraft`), kept for its own round only, so a reload keeps it.
+- `js/ui/bots.js`: `takeRevenge()`, used by the new 🧪 **Bots take revenge** button.
+- `css/game.css`: styles for the revenge card and a red button.
+- `tests/revenge-stage.test.js` (new), plus updates to `docs/SPEC.md` (§10 new section, P9b ✅, decision log) and `AGENTS.md`.
 
-**Edge cases**
-- The pass text never shows the chain. It only names the next holder, which `getTask` already exposes.
-- A reload during the waiting screen comes back to the same waiting screen, because `done` comes from the host.
-- The toast fires only when the round actually changes, not on the first render after a reload.
+**What you get**
+- 🔥 "Take revenge on X?" with **Skip** / **Write revenge ✍️**. The form says which kind of rule to write ("🎨 Drawing rule for X's next drawing"), has a counter, and offers name chips when two players gave you rules.
+- 🙈 Skip only hides it for this round. Your revenge is kept for later.
+- ✅ After sending: "Revenge sent to X" for the rest of that round. X sees "🔥 Revenge from you" on their next task.
+- 🚫 There's no prompt in round 0, without a rule, after you've used it, in the last round, or when no target is allowed.
 
-**Test** `tests/pass-stage.test.js`, memory transport:
-- Full games with 8 and 5 players, played through Host, Clients and Bots with dummy input.
-- Each round, every player's pass text names the next holder of their chain (checked against the schedule) and the right next task.
-- The last round says "reveal pile".
-- The stage ends `finished`, and every chain's last stage is `interpret`.
-- Then a phone check in the preview with 🧪 bots.
+**Try it**
+1. Bring PolyDev to the front and tap the preview (🌐) button.
+2. Host a game, use 🧪 to fill with bots and have them write rules, then start.
+3. Play until you get a rule. The 🔥 card appears: send a revenge. Next round, the target bot's task shows it.
+4. To see a revenge on yourself: 🧪 → **Bots take revenge**, then Next round.
 
-**Spec**: §10 gets a new "Pass + round progression" part, and §15 gets the decisions (one paper per chain, one-tap Done & passed, reveal pile at the end).
-
-Shall I go ahead?
+**Next**
+- P10: run the model in the background and score every transformation at the end.
+- Maybe: warn the host when someone is still typing a revenge, before Next round.

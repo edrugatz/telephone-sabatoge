@@ -7,7 +7,7 @@ import { connectFirebase } from '../sync/firebase-transport.js';
 import { normalizeCode } from '../sync/transport.js';
 import { Host } from '../game/host.js';
 import { Client } from '../game/client.js';
-import { GameError } from '../game/game.js';
+import { GameError, revengeOptions } from '../game/game.js';
 import { createSessionStore, memoryStorage } from './session.js';
 import { Bots } from './bots.js';
 import { createRouter } from './router.js';
@@ -48,6 +48,8 @@ const app = {
   taskDraft: null, // { round, text }
   // Round progression (P9): the round this phone last showed (null after a load, so no toast then).
   shownRound: null,
+  // Revenge (P9b): this round's prompt state { round, open, skipped, text, target }.
+  revenge: null,
 };
 
 function safeStorage() {
@@ -182,7 +184,7 @@ function detach() {
   Object.assign(app, {
     session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' },
     rulesScreen: null, ruleDraft: null, rulesEditing: false,
-    starting: false, startError: null, taskScreen: null, taskDraft: null, shownRound: null,
+    starting: false, startError: null, taskScreen: null, taskDraft: null, shownRound: null, revenge: null,
   });
 }
 
@@ -335,6 +337,11 @@ function showTask(view, isHost) {
   if (app.shownRound !== null && app.shownRound !== round) announce(roundTitle(round));
   app.shownRound = round;
   if (app.taskDraft?.round !== round) app.taskDraft = { round, text: store.loadTaskDraft(view.code, round) };
+  if (app.revenge?.round !== round) {
+    // A typed revenge from before a reload reopens the form.
+    const saved = store.loadRevengeDraft(view.code, round);
+    app.revenge = { round, open: !!saved?.text, skipped: false, text: saved?.text ?? '', target: saved?.target ?? null };
+  }
   const fresh = router.current !== 'task' || !app.taskScreen;
   if (fresh) {
     app.taskScreen = createTaskScreen({
@@ -348,9 +355,25 @@ function showTask(view, isHost) {
       onSubmit: submitTask,
       onNextRound: () => hostAction(() => app.host.advance()),
       onEndGame: endGame,
+      revenge: {
+        onOpen: () => {
+          app.revenge.open = true;
+          render();
+        },
+        onSkip: () => {
+          Object.assign(app.revenge, { open: false, skipped: true });
+          render();
+        },
+        onDraft: (text, target) => {
+          Object.assign(app.revenge, { text, target });
+          store.saveRevengeDraft(app.view.code, app.revenge.round, text, target);
+        },
+        onSend: sendRevenge,
+      },
       testing: {
         onToggle: (open) => (app.testing.open = open),
         onBotTasks: () => botAction(botsDoTasks),
+        onBotRevenge: () => botAction(botsTakeRevenge),
       },
     });
   }
@@ -359,6 +382,7 @@ function showTask(view, isHost) {
     isHost,
     draft: app.taskDraft.text,
     busy: app.busy,
+    revenge: { ...app.revenge },
     testing: { open: app.testing.open, status: app.testing.status },
   });
   if (fresh) router.show('task', app.taskScreen.element);
@@ -371,6 +395,25 @@ async function submitTask(text) {
   try {
     const result = await app.client.submitTask(text);
     toast(result.ok ? 'Done ✅' : result.message);
+  } finally {
+    app.busy = false;
+    if (app.client) render();
+  }
+}
+
+/** Send this round's revenge rule. A refusal (taken by someone else, round over) is said in a toast. */
+async function sendRevenge(text, target) {
+  if (app.busy || !app.client) return;
+  app.busy = true;
+  render();
+  try {
+    const result = await app.client.revenge(text, target);
+    if (result.ok) {
+      store.forgetRevengeDraft();
+      toast('🔥 Revenge sent');
+    } else {
+      toast(result.message);
+    }
   } finally {
     app.busy = false;
     if (app.client) render();
@@ -481,6 +524,14 @@ async function botsDoTasks() {
   const { waitingFor = [], round } = app.view ?? {};
   const done = await app.bots.doTasks(app.host.state.seats, waitingFor, round);
   app.testing.status = done ? `${done} bot${done === 1 ? '' : 's'} finished 🤖` : 'No bot is still busy';
+}
+
+async function botsTakeRevenge() {
+  app.testing.status = 'Bots are plotting revenge…';
+  render();
+  const round = app.view?.round;
+  const took = await app.bots.takeRevenge(app.host.state.seats, round, (p) => revengeOptions(app.host.state.game, p));
+  app.testing.status = took ? `${took} bot${took === 1 ? '' : 's'} took revenge 🔥` : 'No bot can take revenge this round';
 }
 
 boot();

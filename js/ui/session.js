@@ -7,11 +7,19 @@
 //   name       the last name typed on the home screen
 //   ruleDraft  { code, rules } the rules being typed in the rules stage (P7), so a reload keeps them
 //   taskDraft  { code, round, text } the sentence being typed on the task screen (P8)
+//   revengeDraft { code, round, text, target } the revenge rule being typed (P9b)
 
 import { normalizeCode } from '../sync/transport.js';
 import { normalizeDraft } from './rule-draft.js';
 
-export const KEYS = { session: 'tps.session', backup: 'tps.hostBackup', name: 'tps.name', draft: 'tps.ruleDraft', taskDraft: 'tps.taskDraft' };
+export const KEYS = {
+  session: 'tps.session',
+  backup: 'tps.hostBackup',
+  name: 'tps.name',
+  draft: 'tps.ruleDraft',
+  taskDraft: 'tps.taskDraft',
+  revengeDraft: 'tps.revengeDraft',
+};
 export const ROLES = ['host', 'player'];
 
 /** A storage that only lives in memory (tests, or browsers that block localStorage). */
@@ -93,6 +101,25 @@ export function createSessionStore(storage = memoryStorage()) {
       drop(KEYS.backup);
       drop(KEYS.draft);
       drop(KEYS.taskDraft);
+      drop(KEYS.revengeDraft);
+    },
+
+    /** Keep the revenge rule being typed for this game's round (target = player index or null). */
+    saveRevengeDraft(code, round, text, target = null) {
+      if (typeof text !== 'string' || !Number.isInteger(round)) return;
+      write(KEYS.revengeDraft, JSON.stringify({ code, round, text, target: Number.isInteger(target) ? target : null }));
+    },
+
+    /** The revenge draft { text, target } for this game and round, or null (another round's is ignored). */
+    loadRevengeDraft(code, round) {
+      const json = read(KEYS.revengeDraft);
+      const saved = json === null ? null : parse(json);
+      if (saved?.code !== code || saved.round !== round || typeof saved.text !== 'string') return null;
+      return { text: saved.text, target: Number.isInteger(saved.target) ? saved.target : null };
+    },
+
+    forgetRevengeDraft() {
+      drop(KEYS.revengeDraft);
     },
 
     /** Keep the sentence being typed for this game's round. */

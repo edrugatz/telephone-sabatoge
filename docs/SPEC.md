@@ -5,8 +5,8 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P9 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
-screen, pass + round progression; P9b next).** Existing code: the
+Status: **in progress (P1–P9b done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
+screen, pass + round progression, revenge UI; P10 next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -353,6 +353,22 @@ Three awards:
 - **Finished**: "🏁 All chains are done!" + "Bring every paper to the reveal pile" + a "reveal is coming" card
   (P10–P12) and Close this game. Toast + vibration when the game ends.
 
+### Revenge prompt (`js/ui/revenge.js`, task screen, P9b)
+
+- `revengePrompt(view)` (no DOM) → `null` or `{ round, type, targets: [{ target, name }] }` from `view.revenge` and
+  `view.myRevenge`. No prompt in round 0, without a rule, after using it, in the last round, or when every target is
+  in conflict / taken. Blocked targets are hidden **without a reason** (a conflict would reveal the routing).
+- A 🔥 card in its own slot **under the task (below the Done button) and under the waiting card**, so it stays open
+  until the host advances. Collapsed: "🔥 Take revenge on X?" + why + **Skip** / **Write revenge ✍️**. Open: name
+  chips when there are two targets, "🎨 Drawing rule for X's next drawing" (or ✍️ writing rule / interpretation), a
+  text box with an 80-character counter (`checkRevenge`), **Send revenge to X 🔥**, **Not now**. After sending:
+  "🔥 Revenge sent to X" + the rule, for the rest of that round. The target sees "🔥 Revenge from V" (P8 rule card).
+- **Skip** only hides it for this round; the revenge is kept. A host refusal (taken by someone first, round over)
+  is a toast. The draft is outside the DOM (memory + localStorage `tps.revengeDraft` `{ code, round, text, target }`);
+  a saved draft reopens the form after a reload.
+- 🧪 Testing → **Bots take revenge** (`bots.takeRevenge`): every bot that can writes a random `BOT_RULES` rule of
+  the right type, asking the host's `revengeOptions` again before each bot.
+
 ## 11. Design philosophy
 
 Party companion, not a productivity tool. Simple readable phone screens, obvious next action, minimal
@@ -391,7 +407,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P7 | Rule submission | 3 rules per player with a type toggle; validation | Every player can enter rules; Start stays blocked until all are in | ✅ |
 | P8 | Preparation + task screen | Generate and validate the schedule (with a spinner and error text); task screen with round, task, sentence, rule + author (or "No rule this time"), advisory timer; text input + Done for every task type, host's basic Next round, bots do their tasks | Start an 8-player game; each player's round-1 task shows the correct rule or none (`tests/task-stage.test.js`) | ✅ |
 | P9 | Pass + round progression | "Pass your paper to X" (and what X will do), "done & passed" confirmation, a better waiting / round-progression screen, the last round handed to the reveal | Play a full game through the UI with dummy input; it ends on interpretations (`tests/pass-stage.test.js`) | ✅ |
-| P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt | ⬜ |
+| P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt (`tests/revenge-stage.test.js`) | ✅ |
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes | ⬜ |
 | P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game | ⬜ |
 | P12 | Chain reveal | Step-by-step reveal per chain: sentences, who drew/interpreted, active rules (revenge highlighted), drift from start to end | Walk through every chain of a played game on a phone screen | ⬜ |
@@ -458,5 +474,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P7: rule submission screen (§10 Rule submission). Rules (and revenge rules) are at most 80 characters, enforced by game.js on the host and checked on the phone. Players can edit their rules until the host starts. The draft is kept outside the DOM (memory + localStorage) and live updates don't redraw the inputs. Bots write random built-in rules from the Testing section. Test: `tests/rules-stage.test.js`. |
 | 2026-11-27 | P8: preparation + task screen (§10). Scope moved from P9 into P8, because round 1 can't be reached without it: the text input + Done for every task (incl. the round-0 original sentence) and the host's basic **Next round**. P9 keeps the pass step, "done & passed", the waiting screen and the hand-off to the reveal. A failed Start shows an error card on the rules screen instead of a toast. Test: `tests/task-stage.test.js`. |
 | 2026-11-27 | P9: pass + round progression (§10). Partly answers open question 3: **one paper per chain** travels every round, folded so the previous drawing is hidden, and goes on a **reveal pile** after the last round (not back to the creator). **One-tap "Done & passed to X"**: no separate pass confirmation, the host only waits on Done. New round = toast + vibration. Test: `tests/pass-stage.test.js` (full 8- and 5-player games). |
+| 2026-11-27 | P9b: revenge prompt (§10 Revenge prompt). Shown both during the task and on the waiting screen (most time before the host advances), in its own slot below the task. Unavailable targets are hidden silently, so the prompt never hints at the routing. Skip is per round, the revenge is kept. Bots can take revenge from 🧪 Testing. Test: `tests/revenge-stage.test.js`. |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |
