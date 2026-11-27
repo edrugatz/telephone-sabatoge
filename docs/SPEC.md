@@ -5,8 +5,8 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P8 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
-screen; P9 next).** Existing code: the
+Status: **in progress (P1–P9 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
+screen, pass + round progression; P9b next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -280,7 +280,7 @@ Three awards:
 ### App shell (`index.html`, `js/ui/`, P6)
 
 - `main.js` is the controller: connect Firebase → restore the session → show the screen for the view's `stage`
-  (`lobby` → lobby; `rules` → rules screen; `playing` → task screen; `finished` → placeholder until P10+). `router.js` is state-driven
+  (`lobby` → lobby; `rules` → rules screen; `playing` → task screen; `finished` → finished screen, P9). `router.js` is state-driven
   (`show(name, element)`), not URL-driven. Screens are functions returning an element (`screens/*.js`, `dom.js` `h()`).
 - **Session** (`session.js`, localStorage, no DOM): `tps.session` `{ code, role: host|player, uid, name, bots }`,
   `tps.hostBackup` (last `onSave` JSON, used by `Host.resume` when the database has no host state), `tps.name`
@@ -338,6 +338,21 @@ Three awards:
   `BOT_SENTENCES` sentence for the current round; the host ignores it on drawing tasks). Player: "Waiting for the host to
   start the next round".
 
+### Pass + round progression (`js/ui/pass.js`, `js/ui/screens/finished.js`, P9)
+
+- **One paper per chain** travels every round (round 0 too). Before the task is done, the task screen shows a pass
+  card: "📄 Then pass your paper to X" + what X will do ("will draw your sentence on it" / "will interpret your
+  drawing" / "will draw the next picture. Fold the paper so your drawing is hidden."). On the last round: "📥 Then put
+  your paper on the reveal pile".
+- **One tap**: the Done button is the pass confirmation: "Done & passed to X ✅" (drawing) / "Send & pass to X ✅"
+  (sentence) / "… put on the pile ✅" (last round). There is no separate "passed" message to the host.
+- **Waiting screen** (task done): "✅ Done & passed to X" + "Next you'll 🎨 draw / 🔍 interpret. When you get a paper,
+  check your task here." The live part shows a progress bar and a chip per player (✅ done / ✍️ busy, you outlined).
+- **New round**: a toast "Round r · 🎨 Drawing" and a short vibration (where supported), not after a reload. The texts
+  only name the next holder (already in `getTask`), never the chain.
+- **Finished**: "🏁 All chains are done!" + "Bring every paper to the reveal pile" + a "reveal is coming" card
+  (P10–P12) and Close this game. Toast + vibration when the game ends.
+
 ## 11. Design philosophy
 
 Party companion, not a productivity tool. Simple readable phone screens, obvious next action, minimal
@@ -375,7 +390,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P6 | App shell + home + lobby | Move the current scorer page to `tune.html`; new `index.html` game shell with screen router, home (create / join with code + name) and live lobby; session (uid, code, role) in localStorage | Host creates a game, 7 more players join (bot button for testing on one phone), reload on either side and the lobby is still there; the tune page still works | ✅ |
 | P7 | Rule submission | 3 rules per player with a type toggle; validation | Every player can enter rules; Start stays blocked until all are in | ✅ |
 | P8 | Preparation + task screen | Generate and validate the schedule (with a spinner and error text); task screen with round, task, sentence, rule + author (or "No rule this time"), advisory timer; text input + Done for every task type, host's basic Next round, bots do their tasks | Start an 8-player game; each player's round-1 task shows the correct rule or none (`tests/task-stage.test.js`) | ✅ |
-| P9 | Pass + round progression | "Pass your paper to X" (and what X will do), "done & passed" confirmation, a better waiting / round-progression screen, the last round handed to the reveal | Play a full game through the UI with dummy input; it ends on interpretations | ⬜ |
+| P9 | Pass + round progression | "Pass your paper to X" (and what X will do), "done & passed" confirmation, a better waiting / round-progression screen, the last round handed to the reveal | Play a full game through the UI with dummy input; it ends on interpretations (`tests/pass-stage.test.js`) | ✅ |
 | P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt | ⬜ |
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes | ⬜ |
 | P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game | ⬜ |
@@ -418,7 +433,7 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 
 2. **How drawings reach the reveal.** The app never sees the paper. Options: lay the papers out
    physically during the reveal, or take an optional photo per drawing (stored locally).
-3. **Paper format.** Does one paper (folded booklet) travel with each chain, or a new sheet per drawing?
+3. **Paper format.** One paper per chain travels every round (decided in P9). Still open: the exact folding / page layout.
 6. **Max chain length** for long games with many players (cap k?).
 
 ## 15. Decision log
@@ -442,5 +457,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P6: app shell (§10 App shell). Scorer page moved to `tune.html` (still `js/app.js`); game is `index.html` + `js/ui/`. State-driven router, session in localStorage with a host backup. Test bots are real Firebase users (named apps `bot-N`), not an offline mode, so they exercise the real sync; the Testing section is always shown to the host, collapsed. `connectFirebase(config, { name })` supports several apps per page. Tests: `tests/session.test.js`, `tests/bots.test.js` (memory transport: 7 bots join, host and player reload). |
 | 2026-11-27 | P7: rule submission screen (§10 Rule submission). Rules (and revenge rules) are at most 80 characters, enforced by game.js on the host and checked on the phone. Players can edit their rules until the host starts. The draft is kept outside the DOM (memory + localStorage) and live updates don't redraw the inputs. Bots write random built-in rules from the Testing section. Test: `tests/rules-stage.test.js`. |
 | 2026-11-27 | P8: preparation + task screen (§10). Scope moved from P9 into P8, because round 1 can't be reached without it: the text input + Done for every task (incl. the round-0 original sentence) and the host's basic **Next round**. P9 keeps the pass step, "done & passed", the waiting screen and the hand-off to the reveal. A failed Start shows an error card on the rules screen instead of a toast. Test: `tests/task-stage.test.js`. |
+| 2026-11-27 | P9: pass + round progression (§10). Partly answers open question 3: **one paper per chain** travels every round, folded so the previous drawing is hidden, and goes on a **reveal pile** after the last round (not back to the creator). **One-tap "Done & passed to X"**: no separate pass confirmation, the host only waits on Done. New round = toast + vibration. Test: `tests/pass-stage.test.js` (full 8- and 5-player games). |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |

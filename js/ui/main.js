@@ -17,6 +17,8 @@ import { homeScreen } from './screens/home.js';
 import { lobbyScreen, BOT_TARGET } from './screens/lobby.js';
 import { createRulesScreen } from './screens/rules.js';
 import { createTaskScreen } from './screens/task.js';
+import { finishedScreen } from './screens/finished.js';
+import { roundTitle } from './pass.js';
 import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
 
@@ -44,6 +46,8 @@ const app = {
   startError: null,
   taskScreen: null,
   taskDraft: null, // { round, text }
+  // Round progression (P9): the round this phone last showed (null after a load, so no toast then).
+  shownRound: null,
 };
 
 function safeStorage() {
@@ -178,7 +182,7 @@ function detach() {
   Object.assign(app, {
     session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' },
     rulesScreen: null, ruleDraft: null, rulesEditing: false,
-    starting: false, startError: null, taskScreen: null, taskDraft: null,
+    starting: false, startError: null, taskScreen: null, taskDraft: null, shownRound: null,
   });
 }
 
@@ -220,6 +224,10 @@ function render() {
     showRules(view, isHost);
   } else if (view.stage === 'playing' && view.task) {
     showTask(view, isHost);
+  } else if (view.stage === 'finished') {
+    if (app.shownRound !== null) announce('🏁 Game over! Papers to the reveal pile');
+    app.shownRound = null;
+    router.show('finished', finishedScreen({ view, onEndGame: endGame }));
   } else {
     router.show('stage', stageScreen({ view, isHost, onEndGame: endGame }));
   }
@@ -312,8 +320,20 @@ async function startGame() {
   }
 }
 
+/** A new round (or the end): buzz the phone and say so. */
+function announce(message) {
+  toast(message);
+  try {
+    navigator.vibrate?.([120, 60, 120]);
+  } catch {
+    // Some browsers refuse vibrate without a tap first: the toast is enough.
+  }
+}
+
 function showTask(view, isHost) {
   const { round } = view.task;
+  if (app.shownRound !== null && app.shownRound !== round) announce(roundTitle(round));
+  app.shownRound = round;
   if (app.taskDraft?.round !== round) app.taskDraft = { round, text: store.loadTaskDraft(view.code, round) };
   const fresh = router.current !== 'task' || !app.taskScreen;
   if (fresh) {

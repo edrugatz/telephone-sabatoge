@@ -218,6 +218,32 @@
 .done-card { border-color: var(--ok); }
 .textarea { resize: none; line-height: 1.4; }
 
+/* Pass + round progression (P9) */
+.pass-card { display: flex; flex-direction: column; gap: 4px; border-color: var(--accent); border-style: dashed; }
+.pass-card.is-reveal { border-color: var(--ok); }
+.pass-title { margin: 0; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.done-card .hero-emoji { font-size: 2.2rem; }
+.done-card .card-title { overflow-wrap: anywhere; }
+.progress { height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.progress-fill {
+  height: 100%;
+  background: var(--ok);
+  transform-origin: left center;
+  transition: transform 0.3s ease;
+}
+.chip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.chip.is-done { border-color: color-mix(in srgb, var(--ok) 60%, transparent); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.chip.is-busy { color: var(--muted); }
+.chip.is-you { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* Loading */
 .spinner {
   width: 40px;

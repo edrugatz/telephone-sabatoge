@@ -1,27 +1,46 @@
-✅ **P8 (Preparation + task screen) is built.** All 132 logic tests pass, including the new P8 test. I couldn't open the preview here because the app was in the background, so the screens haven't been seen on a phone yet; the changed files only passed a syntax check. The commit waits for your confirmation.
+## P8 check
+
+P8 is finished in the code. The screens exist, the spec marks it ✅, and all 132 logic tests pass, including `tests/task-stage.test.js`. It is **not committed**, though: you declined the commit, so 13 changed files are still uncommitted. You can commit them from Source Control.
+
+## P9 plan: pass + round progression
+
+You chose **one paper per chain** and **one tap: Done & passed**.
 
 **Files**
-- `js/ui/screens/task.js` *(new)*: the task screen. Built like the rules screen, so typing isn't interrupted when the view updates.
-- `js/ui/timer.js` *(new)*: the advisory timer: 60 / 90 / 45 s, counted from the host's start time.
-- `js/game/host.js`: records `roundStartedAt` on Start and on every Next round, and puts it in each player's view.
-- `js/ui/screens/rules.js`: a spinner, "Preparing the game…", while the game is prepared. If it fails, an error card and **Try again**.
-- `js/ui/main.js`: shows the task screen during the game; Done, Next round, and the bots' task button.
-- `js/ui/bots.js`: `doTasks`: bots send a made-up sentence for the current round.
-- `js/ui/session.js`: keeps the sentence you're typing (`tps.taskDraft`), one per game and round, so a reload doesn't lose it.
-- `css/game.css`: round chip, timer, sentence card, rule cards (revenge in red).
-- `tests/task-stage.test.js` *(new)*: an 8-player game. Each round-1 view shows exactly the rule the host assigned, or none. Ana's rules only show where they were assigned. Also covers the timer, the draft, a refused Start, and a host reload.
-- `docs/SPEC.md`, `AGENTS.md`: §10 task screen, P8 ✅, P9 scope narrowed, timer (open question 4) moved to the Decision log.
+- `js/ui/pass.js` (new, no DOM): builds the pass and waiting text from `view.task`, so Node can test it:
+  - "📄 Pass your paper to Ben"
+  - What Ben will do next: "Ben will draw your sentence" / "interpret your drawing" / "draw from your sentence"
+  - The last round: "Put your paper on the reveal pile"
+- `js/ui/screens/task.js`:
+  - A pass card on the task screen from the start.
+  - The button becomes "Done & passed to Ben ✅" for drawings and "Send & pass to Ben ✅" for sentences.
+  - On the last round it becomes "Done → reveal pile".
+- **Waiting screen** (after Done replaces the task part):
+  - "✅ Done & passed to Ben", with a smaller pass reminder.
+  - Progress bar n / N, with chips for ✅ done and ✍️ busy players.
+  - "Next: you'll 🔍 interpret. When you get a paper, check your task."
+  - The host keeps Next round / Finish 🏁 and the Testing section.
+- **New round**:
+  - Phones vibrate (`navigator.vibrate`, where the phone supports it) and show a toast "Round 3 · 🎨 Drawing".
+  - The screen scrolls to the top.
+- `js/ui/screens/finished.js` (new): the hand-off to the reveal. It replaces the `finished` placeholder:
+  - "🏁 All chains are done! Bring every paper to the reveal pile."
+  - k rounds, n chains, and "Results come next" (P10–P12).
+  - Host: Close this game.
+- `css/game.css`: pass card, progress bar, chips.
 
-**What you get**
-- 🎬 Start → spinner → everyone sees their task
-- 🎨 Round, task, sentence to draw, timer
-- 😈 "Sabotage from X" / 🔥 "Revenge from X" / 🍀 "No rule this time"
-- ✍️ Sentence box + Done; the host gets **Next round →** when everyone's done
+**Edge cases**
+- The pass text never shows the chain. It only names the next holder, which `getTask` already exposes.
+- A reload during the waiting screen comes back to the same waiting screen, because `done` comes from the host.
+- The toast fires only when the round actually changes, not on the first render after a reload.
 
-**Try it**
-1. Tap the preview (globe) button and host a game.
-2. 🧪 Testing → **Fill to 8** → **Write rules**.
-3. 🧪 **Bots write rules**, write your own rules, then **Start the game 🎬**.
-4. Write your sentence, 🧪 **Bots do their tasks**, then **Next round →**. Round 1 shows your drawing task and its rule, or none.
+**Test** `tests/pass-stage.test.js`, memory transport:
+- Full games with 8 and 5 players, played through Host, Clients and Bots with dummy input.
+- Each round, every player's pass text names the next holder of their chain (checked against the schedule) and the right next task.
+- The last round says "reveal pile".
+- The stage ends `finished`, and every chain's last stage is `interpret`.
+- Then a phone check in the preview with 🧪 bots.
 
-**Next:** P9: "Pass your paper to X", the "done & passed" confirmation, and a full game played through the screens.
+**Spec**: §10 gets a new "Pass + round progression" part, and §15 gets the decisions (one paper per chain, one-tap Done & passed, reveal pile at the end).
+
+Shall I go ahead?

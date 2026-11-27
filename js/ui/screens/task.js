@@ -1,5 +1,7 @@
 // Task screen (P8): the player's task for this round, with the round, the sentence to draw, the active
 // sabotage rule(s) and their authors (or "No rule this time"), an advisory timer and a Done action.
+// P9: a pass card ("Then pass your paper to X") and one "Done & passed to X" tap; once done, the task part
+// becomes the waiting screen, and the live part shows the round's progress bar and player chips.
 //
 // Like the rules screen it is a component: the task part (and its text box) is built once per round and
 // per done/not-done, and update() only redraws the live part (who is still busy, the host's Next round).
@@ -11,6 +13,7 @@
 
 import { h } from '../dom.js';
 import { secondsLeft, formatSeconds } from '../timer.js';
+import { passInfo, waitingText, roundLabel, roundProgress } from '../pass.js';
 
 const TASKS = {
   write: {
@@ -18,20 +21,17 @@ const TASKS = {
     title: 'Write a sentence',
     hint: 'Something fun to draw. It starts your chain.',
     placeholder: 'e.g. A cat rides a bicycle to the moon',
-    button: 'Send my sentence ✅',
   },
   draw: {
     emoji: '🎨',
     title: 'Draw this',
     hint: 'Draw it on your paper. No words or letters!',
-    button: "I'm done drawing ✅",
   },
   interpret: {
     emoji: '🔍',
     title: 'What does the drawing show?',
     hint: 'Look at the drawing you were handed and describe it in one sentence.',
     placeholder: 'e.g. A dragon is afraid of a tiny mouse',
-    button: 'Send my sentence ✅',
   },
 };
 
@@ -92,60 +92,61 @@ function buildTask(state, handlers) {
   const { view } = state;
   const { task } = view;
   const info = TASKS[task.task];
+  const pass = passInfo(task);
   const timer = task.done ? null : h('span', { class: 'timer', role: 'timer', 'aria-live': 'off' });
 
-  const header = h(
-    'div',
-    { class: 'row-between' },
-    h('span', { class: 'round-chip', text: task.round === 0 ? 'Round 0 · warm-up' : `Round ${task.round} of ${task.lastRound}` }),
-    timer,
-  );
+  const header = h('div', { class: 'row-between' }, h('span', { class: 'round-chip', text: roundLabel(task.round, task.lastRound) }), timer);
 
-  const hero = h(
-    'div',
-    { class: 'hero' },
-    h('div', { class: 'hero-emoji', 'aria-hidden': 'true', text: info.emoji }),
-    h('h2', { class: 'card-title', text: info.title }),
-    task.done ? null : h('p', { class: 'hint subtitle', text: info.hint }),
-  );
-
-  const sentence = task.task === 'draw' && task.sentence ? h('blockquote', { class: 'card sentence-card', text: task.sentence }) : null;
-  const rules = task.round === 0 ? null : rulesSection(task.rules);
-
+  // Done: the waiting screen. The paper is passed, nothing left to read here.
   if (task.done) {
     return {
       element: h(
         'div',
         { class: 'stack' },
         header,
-        hero,
-        sentence,
-        rules,
-        h('div', { class: 'card done-card' }, h('p', { class: 'card-title', text: '✅ Done!' }), h('p', { class: 'hint', text: doneHint(task) })),
+        h(
+          'div',
+          { class: 'card done-card' },
+          h('div', { class: 'hero-emoji', 'aria-hidden': 'true', text: pass.reveal ? '📥' : '📄' }),
+          h('p', { class: 'card-title', text: pass.doneTitle }),
+          h('p', { class: 'hint', text: waitingText(task) }),
+        ),
       ),
       timer,
     };
   }
 
+  const hero = h(
+    'div',
+    { class: 'hero' },
+    h('div', { class: 'hero-emoji', 'aria-hidden': 'true', text: info.emoji }),
+    h('h2', { class: 'card-title', text: info.title }),
+    h('p', { class: 'hint subtitle', text: info.hint }),
+  );
+
+  const sentence = task.task === 'draw' && task.sentence ? h('blockquote', { class: 'card sentence-card', text: task.sentence }) : null;
+  const rules = task.round === 0 ? null : rulesSection(task.rules);
+  const passCard = h(
+    'div',
+    { class: `card pass-card${pass.reveal ? ' is-reveal' : ''}` },
+    h('p', { class: 'pass-title', text: pass.title }),
+    h('p', { class: 'hint', text: pass.detail }),
+  );
+
   if (task.task === 'draw') {
     const submitButton = h('button', {
       class: 'btn btn-primary btn-block btn-big',
       type: 'button',
-      text: info.button,
+      text: pass.button,
       on: { click: () => handlers.onSubmit(null) },
     });
-    return { element: h('div', { class: 'stack' }, header, hero, sentence, rules, submitButton), timer, submitButton };
+    return { element: h('div', { class: 'stack' }, header, hero, sentence, rules, passCard, submitButton), timer, submitButton };
   }
 
-  return { ...sentenceForm(state, handlers, info, [header, hero, rules]), timer };
+  return { ...sentenceForm(state, handlers, { ...info, button: pass.button }, [header, hero, rules], passCard), timer };
 }
 
-function doneHint(task) {
-  if (task.passTo === 'reveal') return 'That was the last task. Keep your paper for the reveal.';
-  return 'Waiting for the others to finish this round.';
-}
-
-function sentenceForm({ draft }, { onDraftChange, onSubmit }, info, top) {
+function sentenceForm({ draft }, { onDraftChange, onSubmit }, info, top, bottom) {
   let text = draft ?? '';
   const error = h('p', { class: 'form-error', role: 'alert', hidden: true });
   const input = h('textarea', {
@@ -196,6 +197,7 @@ function sentenceForm({ draft }, { onDraftChange, onSubmit }, info, top) {
     },
     top,
     h('div', { class: 'card stack' }, input, error),
+    bottom,
     submitButton,
   );
   return { element, submitButton, input };
@@ -225,25 +227,32 @@ function liveSection(state, handlers) {
   const { view, isHost, busy } = state;
   const waiting = view.waitingFor ?? [];
   const everyoneDone = waiting.length === 0;
-  const done = view.players.length - waiting.length;
+  const last = view.round >= view.lastRound;
+  const { done, total, percent, players } = roundProgress(view.players, waiting);
+  const me = view.you?.name;
 
   const progress = h(
     'div',
     { class: 'card stack' },
-    h('div', { class: 'row-between' }, h('h2', { class: 'card-title', text: 'Finished' }), h('span', { class: 'count', text: `${done} / ${view.players.length}` })),
+    h('div', { class: 'row-between' }, h('h2', { class: 'card-title', text: 'Finished' }), h('span', { class: 'count', text: `${done} / ${total}` })),
     h(
-      'p',
-      { class: 'hint', 'aria-live': 'polite' },
-      everyoneDone ? 'Everyone is done 🎉' : `Still busy: ${waiting.join(', ')}`,
+      'div',
+      { class: 'progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(total), 'aria-valuenow': String(done) },
+      h('div', { class: 'progress-fill', style: `transform: scaleX(${percent / 100})` }),
     ),
+    h(
+      'ul',
+      { class: 'chip-list', 'aria-label': 'Players this round' },
+      players.map((p) => h('li', { class: `chip ${p.done ? 'is-done' : 'is-busy'}${p.name === me ? ' is-you' : ''}`, text: `${p.done ? '✅' : '✍️'} ${p.name}` })),
+    ),
+    h('p', { class: 'hint', 'aria-live': 'polite', text: everyoneDone ? 'Everyone is done 🎉' : `Still busy: ${waiting.join(', ')}` }),
   );
 
   if (!isHost) {
-    const note = everyoneDone ? '⏳ Waiting for the host to start the next round…' : null;
+    const note = everyoneDone ? (last ? '⏳ Waiting for the host to finish the game…' : '⏳ Waiting for the host to start the next round…') : null;
     return [progress, note ? h('p', { class: 'waiting-note', text: note }) : null];
   }
 
-  const last = view.round >= view.lastRound;
   return [
     progress,
     h('button', {
