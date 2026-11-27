@@ -1,11 +1,5 @@
-## Commit failed: the repo is still empty
+I've added a **Commit as you go** rule to `AGENTS.md`, under the workflow section.
 
-I can't commit without your confirmation; the app always asks. This time you confirmed (I used a one-line message so the card is short), but GitHub refused the push: **"Git Repository is empty"**. The connection can't make the very first commit in a completely empty repo. Nothing was saved: all 48 files are still waiting.
+It says to commit each finished change right away with a clear message. That covers work packages, fixes and spec/doc updates. I can make commits myself, but I can't push from here, so after each commit I'll remind you to push to GitHub (`main`).
 
-### Fix (1 minute, on github.com)
-1. Open **github.com/edrugatz/telephone-sabatoge**.
-2. On the empty repo page, tap **"creating a new file"**. If you don't see that link, use **Add file → Create new file**.
-3. Name it `.nojekyll`. Leave it empty, or type one space if GitHub insists on content.
-4. Tap **Commit changes** on the `main` branch.
-
-That also adds the `.nojekyll` file that was missing from the list. Then say "commit" again, and I'll retry the same commit.
+Do you want me to commit this `AGENTS.md` change now?

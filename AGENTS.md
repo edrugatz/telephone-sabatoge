@@ -4,6 +4,8 @@
 
 **Workflow: one work package per session.** At the start of a session, take the first package in SPEC §12 that isn't done. Before writing any code, discuss the detailed implementation with the user (files, API, edge cases, how it will be tested) and wait for their agreement. Then implement it, run its test, set it to ✅ in §12, and record any decisions in the spec. Stop there; the next package is for a new session.
 
+**Commit as you go.** Whenever a change is completed (a work package, a fix, a doc/spec update), commit it right away with the polydev `git_commit` tool and a clear message; don't leave finished work uncommitted. The agent can't push, so after committing, remind the user to push to GitHub (github.com/edrugatz/telephone-sabatoge, `main`).
+
 Static site (no build step), meant for GitHub Pages. Scores two sentences 0–100 with the `cross-encoder/stsb-TinyBERT-L4` cross-encoder via Transformers.js (loaded from jsDelivr `/+esm`, version pinned in `js/app.js`).
 
 - Preview: `npm start` (zero-dep static server on 127.0.0.1:8080). ES modules need http, not file://.
