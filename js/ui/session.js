@@ -1,0 +1,113 @@
+// Session on this device (P6): which game this phone is in and as what. Pure ES module (no DOM), so the
+// Node tests can use it with a storage stub. `storage` is anything with getItem / setItem / removeItem
+// (localStorage in the browser).
+//
+//   session    { code, role: 'host' | 'player', uid, name, bots: [firebase app names] }
+//   hostBackup the host's last saved state (Host onSave JSON), used by Host.resume when the database has none
+//   name       the last name typed on the home screen
+
+import { normalizeCode } from '../sync/transport.js';
+
+export const KEYS = { session: 'tps.session', backup: 'tps.hostBackup', name: 'tps.name' };
+export const ROLES = ['host', 'player'];
+
+/** A storage that only lives in memory (tests, or browsers that block localStorage). */
+export function memoryStorage() {
+  const data = new Map();
+  return {
+    getItem: (key) => (data.has(key) ? data.get(key) : null),
+    setItem: (key, value) => data.set(key, String(value)),
+    removeItem: (key) => data.delete(key),
+  };
+}
+
+/** The checked session, or null when it isn't one. */
+export function checkSession(value) {
+  if (!value || typeof value !== 'object') return null;
+  const { code, role, uid, name, bots = [] } = value;
+  if (normalizeCode(code) !== code || !ROLES.includes(role)) return null;
+  if (typeof uid !== 'string' || !uid || typeof name !== 'string') return null;
+  if (!Array.isArray(bots) || !bots.every((b) => typeof b === 'string' && b)) return null;
+  return { code, role, uid, name, bots: [...bots] };
+}
+
+export function createSessionStore(storage = memoryStorage()) {
+  const read = (key) => {
+    try {
+      return storage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+  const write = (key, value) => {
+    try {
+      storage.setItem(key, value);
+    } catch {
+      // Storage full or blocked: the game still works, it just won't survive a reload.
+    }
+  };
+  const drop = (key) => {
+    try {
+      storage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  };
+  const parse = (json) => {
+    try {
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+
+  const store = {
+    /**
+     * The saved session for this signed-in user, or null. A broken session, or one saved by another uid
+     * (the browser's data was cleared and Firebase gave a new anonymous user), is deleted.
+     */
+    load(uid) {
+      const json = read(KEYS.session);
+      if (json === null) return null;
+      const session = checkSession(parse(json));
+      if (!session || session.uid !== uid) {
+        store.clear();
+        return null;
+      }
+      return session;
+    },
+
+    save(session) {
+      const clean = checkSession(session);
+      if (!clean) throw new TypeError('Not a valid session');
+      write(KEYS.session, JSON.stringify(clean));
+      return clean;
+    },
+
+    /** Forget the game (session and host backup). The last name is kept. */
+    clear() {
+      drop(KEYS.session);
+      drop(KEYS.backup);
+    },
+
+    /** Keep the host's state JSON (from Host onSave). */
+    saveBackup(json) {
+      if (typeof json === 'string') write(KEYS.backup, json);
+    },
+
+    /** The backup for this game code, or null. */
+    loadBackup(code) {
+      const json = read(KEYS.backup);
+      return json !== null && parse(json)?.code === code ? json : null;
+    },
+
+    lastName() {
+      return read(KEYS.name) ?? '';
+    },
+
+    rememberName(name) {
+      if (typeof name === 'string' && name.trim()) write(KEYS.name, name.trim());
+    },
+  };
+  return store;
+}

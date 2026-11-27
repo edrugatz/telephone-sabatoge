@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Compare how similar two sentences are, using a small AI model that runs in your browser.">
+  <title>Sentence Similarity · Tuning</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <a class="back-link" href="./">← Game</a>
+      <h1>Sentence Similarity</h1>
+      <p class="subtitle">How close in meaning are two sentences? Scored 0–100 by a small AI model running on your device.</p>
+    </header>
+
+    <section class="status" id="status" aria-live="polite">
+      <div class="status-text" id="status-text">Loading model…</div>
+      <div class="progress" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
+    </section>
+
+    <form class="card" id="compare-form" autocomplete="off">
+      <label class="field">
+        <span class="field-label">Sentence A</span>
+        <textarea id="input-a" rows="3" maxlength="1000" placeholder="e.g. The cat sat on the mat."></textarea>
+      </label>
+      <label class="field">
+        <span class="field-label">Sentence B</span>
+        <textarea id="input-b" rows="3" maxlength="1000" placeholder="e.g. A cat was sitting on the rug."></textarea>
+      </label>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="clear-btn">Clear</button>
+        <button type="submit" class="btn btn-primary" id="compare-btn" disabled>Compare</button>
+      </div>
+    </form>
+
+    <section class="card result" id="result" hidden>
+      <div class="score-row">
+        <span class="score" id="score">0</span>
+        <span class="score-max">/ 100</span>
+      </div>
+      <div class="score-label" id="score-label"></div>
+      <div class="gauge" aria-hidden="true"><div class="gauge-fill" id="gauge-fill"></div></div>
+      <div class="gauge-scale" aria-hidden="true"><span>Different</span><span>Same meaning</span></div>
+      <p class="meta" id="meta"></p>
+    </section>
+
+    <section class="card examples">
+      <h2>Try an example</h2>
+      <div class="chips" id="examples"></div>
+    </section>
+
+    <details class="card tuning" id="tuning">
+      <summary>🎛️ Tuning (debug)</summary>
+      <p class="tuning-help">Reshapes the model's output: <code>score = sigmoid((logit − offset) / temperature) × 100</code>. Changes apply instantly and are saved on this device.</p>
+
+      <div class="slider">
+        <div class="slider-head"><label for="t-offset">Offset</label><output id="t-offset-val">0.0</output></div>
+        <input type="range" id="t-offset" min="-4" max="4" step="0.1" value="0">
+        <small>Lower → all scores go up. The logit that scores exactly 50.</small>
+      </div>
+      <div class="slider">
+        <div class="slider-head"><label for="t-temp">Temperature</label><output id="t-temp-val">1.0</output></div>
+        <input type="range" id="t-temp" min="0.3" max="4" step="0.1" value="1">
+        <small>Higher → gentler curve, fewer 0s and 100s. Lower → harsher.</small>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="t-sym" checked>
+        <span>Symmetric (average A→B and B→A)</span>
+      </label>
+
+      <svg class="curve" id="t-curve" viewBox="0 0 300 140" role="img" aria-label="Score curve: dashed is the model default, solid is your tuned curve"></svg>
+      <div class="curve-legend"><span><i class="lg-tuned"></i> tuned</span><span><i class="lg-default"></i> model default</span><span><i class="lg-dot"></i> scored pairs</span></div>
+
+      <code class="values" id="t-values"></code>
+      <div class="tuning-actions">
+        <button type="button" class="btn btn-ghost" id="t-reset">Reset</button>
+        <button type="button" class="btn btn-ghost" id="t-copy">Copy values</button>
+      </div>
+
+      <h3>Calibration pairs</h3>
+      <div class="tuning-actions">
+        <button type="button" class="btn btn-ghost" id="t-add" disabled>Add current pair</button>
+        <button type="button" class="btn btn-primary" id="t-score-all" disabled>Score all pairs</button>
+      </div>
+      <div class="pairs" id="t-pairs"></div>
+    </details>
+
+    <details class="card about">
+      <summary>How it works &amp; limitations</summary>
+      <p>The app uses <a href="https://huggingface.co/cross-encoder/stsb-TinyBERT-L4" target="_blank" rel="noopener">stsb-TinyBERT-L4</a>, a ~15 MB <em>cross-encoder</em> trained on human similarity ratings (STS benchmark). It reads both sentences together and predicts a similarity from 0 to 1, shown here as 0–100. It runs fully in your browser via Transformers.js — your text never leaves the device. The model is downloaded once and cached.</p>
+      <ul>
+        <li><strong>Identical sentences</strong> (ignoring case and spacing) are always 100.</li>
+        <li><strong>Strict about meaning:</strong> related topics without the same meaning often score low.</li>
+        <li><strong>Role swaps</strong> like “the dog bit the man” vs “the man bit the dog” still score high.</li>
+        <li><strong>English only</strong>, and best for single sentences.</li>
+      </ul>
+    </details>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

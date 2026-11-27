@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Telephone Pictionary with sabotage: a party game companion for your phones.">
+  <meta name="theme-color" content="#0f1117">
+  <title>Telephone Sabotage</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+  <div class="app game">
+    <header class="game-header">
+      <h1 class="brand">Telephone <span>Sabotage</span></h1>
+      <span class="code-chip" id="code-chip" hidden></span>
+    </header>
+
+    <main id="screen" class="screen-root">
+      <noscript><p class="hint">This game needs JavaScript.</p></noscript>
+    </main>
+
+    <footer class="game-footer">
+      <a href="tune.html">🎛️ Similarity tuning</a>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/ui/main.js"></script>
+</body>
+</html>

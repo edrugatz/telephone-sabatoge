@@ -1,0 +1,15 @@
+{
+  "name": "sentence-similarity",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compare two sentences with a TinyBERT cross-encoder running in the browser (Transformers.js).",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node scripts/smoke-test.mjs",
+    "test:logic": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "4.3.2"
+  }
+}

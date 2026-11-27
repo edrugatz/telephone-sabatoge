@@ -1,0 +1,37 @@
+{
+  "rules": {
+    "games": {
+      "$code": {
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null && $code.matches(/^[A-HJ-NP-Z]{5}$/) && ((!data.exists() && newData.child('hostUid').val() === auth.uid) || data.child('hostUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['hostUid', 'createdAt', 'version'])"
+        },
+        "public": {
+          ".read": "auth != null && root.child('games/' + $code + '/meta').exists()",
+          ".write": "auth != null && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".validate": "newData.isString()"
+        },
+        "hostState": {
+          ".read": "auth != null && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".write": "auth != null && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid",
+          ".validate": "newData.isString()"
+        },
+        "views": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid",
+            ".validate": "newData.isString()"
+          }
+        },
+        "inbox": {
+          ".read": "auth != null && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid",
+          "$msg": {
+            ".write": "auth != null && root.child('games/' + $code + '/meta').exists() && ((!data.exists() && newData.child('from').val() === auth.uid) || (!newData.exists() && root.child('games/' + $code + '/meta/hostUid').val() === auth.uid))",
+            ".validate": "newData.hasChildren(['from', 'type', 'payload', 'at']) && newData.child('type').isString() && newData.child('payload').isString() && newData.child('payload').val().length < 4000"
+          }
+        }
+      }
+    }
+  }
+}
