@@ -17,6 +17,15 @@ _Nothing yet. Run `npm run feedback`._
 
 ## 🔧 Done
 
+### FB-xqnYGn · 🐛 Bug · 🔧 fixed
+- **When:** 2026-11-27 17:14 UTC · **Who:** Ethan (host) · **Game:** GYQPA, 8 players
+- **Where:** Rules
+- **Phone:** Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36
+- **Decision:** ✅ fixed: the live part of the Rules screen passed a `null` (no start error) to `replaceChildren()`, which renders it as the text "null". New `setChildren()` in `js/ui/dom.js` skips null like `h()`; the task screen had the same latent bug (guests' waiting note) and uses it too.
+
+> After the rules in section there is a small text saying null
+<!-- feedback-id: -P7T-7YeAxEAt3xqnYGn -->
+
 ## ❌ Rejected
 
 ### FB-1q0G6r · 🐛 Bug · ❌ rejected

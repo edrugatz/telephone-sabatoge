@@ -8,7 +8,7 @@
 //   screen.update({ view, isHost, draft, editing, busy, starting, startError, testing: { open, status } });
 //   router.show('rules', screen.element);
 
-import { h } from '../dom.js';
+import { h, setChildren } from '../dom.js';
 import { MAX_RULE_LENGTH } from '../../game/game.js';
 import { TYPE_LABEL, checkDraft } from '../rule-draft.js';
 
@@ -53,7 +53,7 @@ export function createRulesScreen(handlers) {
     }
     if (mode === 'sent') formSlot.replaceChildren(sentCard(state, handlers));
     if (form) form.sendButton.disabled = state.busy;
-    liveSlot.replaceChildren(...liveSection(state, handlers));
+    setChildren(liveSlot, liveSection(state, handlers));
   }
 
   return { element, update };

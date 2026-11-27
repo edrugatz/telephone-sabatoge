@@ -18,6 +18,15 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+/**
+ * Replace an element's children, with the same rules as h(): null/false are skipped, arrays flattened.
+ * Use this instead of el.replaceChildren(), which turns null into a "null" text node.
+ */
+export function setChildren(el, ...children) {
+  el.replaceChildren();
+  append(el, children);
+}
+
 function append(el, children) {
   for (const child of children) {
     if (child === null || child === undefined || child === false) continue;

@@ -16,7 +16,7 @@
 //   screen.update({ view, isHost, draft, busy, revenge: { open, skipped, text, target }, testing: { open, status } });
 //   router.show('task', screen.element);
 
-import { h } from '../dom.js';
+import { h, setChildren } from '../dom.js';
 import { secondsLeft, formatSeconds } from '../timer.js';
 import { passInfo, waitingText, roundLabel, roundProgress } from '../pass.js';
 import { revengePrompt, revengeSent, revengeTexts, revengeSentTexts, checkRevenge } from '../revenge.js';
@@ -91,7 +91,7 @@ export function createTaskScreen(handlers) {
     updateRevenge(state);
     tick();
     startTicking();
-    liveSlot.replaceChildren(...liveSection(state, handlers));
+    setChildren(liveSlot, liveSection(state, handlers));
   }
 
   function updateRevenge(state) {
