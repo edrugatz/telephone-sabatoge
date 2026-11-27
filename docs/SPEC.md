@@ -5,8 +5,8 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P10 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
-screen, pass + round progression, revenge UI, model scoring; P11 next).** Existing code: the
+Status: **in progress (P1–P11 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
+screen, pass + round progression, revenge UI, model scoring, leaderboards + awards; P12 next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -213,8 +213,8 @@ schedule, ruleAt, ruleWarnings, round, sentences[r][c], submitted[r][p], revenge
   Refusal reasons: game.js reasons plus `bad-message`, `not-joined`, `name-taken`, `started`, `full`, `host`, `phase`.
 - **View** (`playerView`): `code, stage, you { player, name, host } | null, players, results`, plus `removed` (not
   seated), `rules { mine, missing }` (rules stage), `round, lastRound, roundStartedAt, task (getTask), revenge
-  (revengeOptions), waitingFor` (playing), `myRevenge`, `scoring { status, done, total, error }` and `scores` (finished,
-  see §10 Scoring). It never holds the schedule, or other players' rules; chains appear only as the finished `scores`.
+  (revengeOptions), waitingFor` (playing), `myRevenge`, `scoring { status, done, total, error }`, `scores` and `standings` (finished,
+  see §10 Scoring and Leaderboards). It never holds the schedule, or other players' rules; chains appear only as the finished `scores`.
 - **Round timer**: the host state has `roundStartedAt` (host clock, ms), set by `start()` and every `advance()`
   (`Host` takes a `now` option for tests). It is in each player's view, so all phones count down together.
 - **Client** (`Client.open`, `Client.join`): `view`, `public`, `watch(cb)`, `watchPublic(cb)`, and `send` / `join` /
@@ -390,7 +390,23 @@ Three awards:
 - **Finished screen**: a scoring card (`scoring-view.js` `scoringCard`). Host: "🧠 Loading the scorer… x / y MB" bar, then
   "Scoring the chains… n / N"; players: a spinner, then the same bar. Error: the host gets the reason + **Try again 🔁**,
   players "The host's phone is having trouble scoring". Done: toast "✅ The scores are in!" and a simple per-chain list
-  (`chainScores`: 🎨 drawer → 🔍 interpreter, "S" became "S′", score + label), to be replaced by P11/P12.
+  (`chainScores`: 🎨 drawer → 🔍 interpreter, "S" became "S′", score + label), now collapsed under the standings (P11)
+  until the P12 reveal replaces it.
+
+### Leaderboards + awards (`host.js` `standings`, `js/ui/standings-view.js`, finished screen, P11)
+
+- `standings(state)` (host, once scoring is done) runs `scoreGame()` (§7) on the tuned transformations and swaps ids for
+  names: `{ awards: [{ id, title, description, winners: [name], value }], preservers: [{ name, value, rank }],
+  saboteurs: [{ name, value, rank, uses, perUse }] }`. Every finished view has it as `standings` (`null` before done), the same
+  for everyone. Totals only: no rule texts and no routing (those wait for the P12 reveal). A host reload rebuilds it from the
+  saved measurements.
+- Texts (no DOM): `awardCards(standings, me)` → `{ id, emoji, title, winners ("Ana & Ben"), reason, value, mine }` (🛡️ Guardian
+  of Meaning, 😈 Master Saboteur, 🌪️ Agent of Chaos; only the awards score.js gives). `boardRows(standings, me)` →
+  `{ preservers, saboteurs }` rows `{ rank, medal (🥇🥈🥉, then "4."), name, value, detail, mine }`. Preservers: "12.3 lost".
+  Saboteurs: "84.0 damage" + "3 rules · 28.0 per rule" or "no rules used". Values are shown to one decimal.
+- **Finished screen** (scores in): 🏆 Awards (one card each, "🎉 That's you!" for the winner), then two stacked cards,
+  **🛡️ Best Preservers** and **😈 Best Saboteurs** (your row outlined, "(you)"), then a collapsed **📜 Chain scores** with the
+  P10 list. Whether it is open is kept outside the DOM, so a re-render doesn't close it.
 
 ## 11. Design philosophy
 
@@ -432,7 +448,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P9 | Pass + round progression | "Pass your paper to X" (and what X will do), "done & passed" confirmation, a better waiting / round-progression screen, the last round handed to the reveal | Play a full game through the UI with dummy input; it ends on interpretations (`tests/pass-stage.test.js`) | ✅ |
 | P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt (`tests/revenge-stage.test.js`) | ✅ |
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes (`tests/scoring-stage.test.js`; `npm test` also scores a played game with the real model) | ✅ |
-| P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game | ⬜ |
+| P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game (`tests/standings-stage.test.js`: 8 players with revenge, every phone; an all-identical game gives only the Guardian award) | ✅ |
 | P12 | Chain reveal | Step-by-step reveal per chain: sentences, who drew/interpreted, active rules (revenge highlighted), drift from start to end | Walk through every chain of a played game on a phone screen | ⬜ |
 
 ---
@@ -499,5 +515,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P9: pass + round progression (§10). Partly answers open question 3: **one paper per chain** travels every round, folded so the previous drawing is hidden, and goes on a **reveal pile** after the last round (not back to the creator). **One-tap "Done & passed to X"**: no separate pass confirmation, the host only waits on Done. New round = toast + vibration. Test: `tests/pass-stage.test.js` (full 8- and 5-player games). |
 | 2026-11-27 | P9b: revenge prompt (§10 Revenge prompt). Shown both during the task and on the waiting screen (most time before the host advances), in its own slot below the task. Unavailable targets are hidden silently, so the prompt never hints at the routing. Skip is per round, the revenge is kept. Bots can take revenge from 🧪 Testing. Test: `tests/revenge-stage.test.js`. |
 | 2026-11-27 | P10: model scoring (§10 Scoring). Only the host phone loads TinyBERT (in the background during the game) and scores at the end; results and progress are published to every view. The curve comes from the host phone's `tune.html` settings (default if none) and is fixed when scoring starts. Raw logits are kept per transformation. Progress is throttled to one publish per 750 ms, and a host reload resumes without re-measuring. Tests: `tests/scoring-stage.test.js` (fake model), `npm test` (real model on a played 5-player game, ~25 ms per pair in Node). |
+| 2026-11-27 | P11: leaderboards + awards (§10 Leaderboards). The host computes them with the P4 engine and publishes `standings` (names, totals only) to every view. Finished screen order: award cards, Best Preservers, Best Saboteurs (two stacked cards, not tabs), then the P10 per-chain list collapsed until P12. Award emojis 🛡️ 😈 🌪️. Test: `tests/standings-stage.test.js`. |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |

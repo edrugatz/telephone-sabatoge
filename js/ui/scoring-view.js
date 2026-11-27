@@ -14,7 +14,7 @@ const mb = (bytes) => (bytes / 1e6).toFixed(1);
 export function scoringCard(scoring, { isHost, download = null } = {}) {
   const status = scoring?.status ?? 'loading';
   if (status === 'done') {
-    return { state: 'done', title: '✅ The scores are in', detail: 'How much meaning survived each drawing:', percent: 100, retry: false };
+    return { state: 'done', title: '✅ The scores are in', detail: 'Who kept the meaning, and who wrecked it:', percent: 100, retry: false };
   }
   if (status === 'error') {
     return isHost

@@ -1,30 +1,34 @@
-✅ **P10 (model scoring) is built and its tests pass.** When a game ends, the host phone scores every drawing → interpretation pair with TinyBERT and sends the scores to every phone. Your tuning choice wasn't stated, so it uses the curve saved on `tune.html` on the host phone, or the default curve if nothing is saved.
+## P11 plan: Leaderboards + awards. I need your OK before I start
 
-**Files**
-- `js/game/scoring.js` (new): `measureAll()` measures only the pairs not scored yet; `applyScores()` applies the tuning curve and keeps the raw logits.
-- `js/game/host.js`: scoring status (loading → scoring → done/error), `score()` / `failScoring()` / `retryScoring()`, progress sent at most every 0.75 s, picks up after a host reload. Views get `scoring` and `scores`.
-- `js/ui/model.js` (new): loads the model lazily on the host phone only, tracks download progress, reads the tune page settings.
-- `js/ui/scoring-view.js` (new): the scoring card texts and the per-chain grouping.
-- `js/ui/screens/finished.js` + `css/game.css`: progress card, Try again, per-chain score list.
-- `js/ui/main.js`: the model download starts in the background once the game is running; scoring starts or resumes when the game is finished.
-- `js/similarity.js`, `js/app.js`, `js/tuning.js`: shared `TRANSFORMERS_URL` / `TUNING_STORAGE_KEY` / `cleanSettings`.
-- `tests/scoring-stage.test.js` (new), `scripts/smoke-test.mjs`, `docs/SPEC.md` (P10 ✅), `AGENTS.md`.
+**Data (host, `js/game/host.js`)**
+- New `standings(state)`: once scoring is `done`, it runs `scoreGame()` (P4) on the scored transformations and returns names instead of ids:
+  - `awards: [{ id, title, description, winners: [names], value }]` (only the awards P4 actually gives)
+  - `preservers: [{ name, value, rank }]`, where value is the meaning lost (lower is better)
+  - `saboteurs: [{ name, value, rank, uses, perUse }]`
+- Added to every finished view as `view.standings`, so every phone gets the same thing. Sabotage totals only. The rule texts stay hidden until the P12 reveal.
 
-**Features**
-- 🧠 Host phone: "Loading the scorer… x / 15 MB", then "Scoring the chains… n / N"
-- 📱 Players: the same progress, with no download on their phones
-- 🔁 Errors show on every phone; the host gets **Try again**
-- 📜 A per-chain list: drawer → interpreter, "S" became "S′", score + label
-- 💾 A host reload continues scoring without measuring anything twice
+**Texts (`js/ui/standings-view.js`, no DOM so tests can check it)**
+- `awardCards(standings, me)`: 🛡️ Guardian of Meaning, 😈 Master Saboteur, 🌪️ Agent of Chaos. Each card has the winner(s), a one-line reason, the value, and "🎉 That's you!" when you won.
+- `boardRows(...)`: shows the rank with 🥇🥈🥉, the name and the value. Your own row is highlighted. Tied players share a rank.
+  - Preservers row: "12.3 lost"
+  - Saboteurs row: "84.0 damage · 3 rules · 28.0 per rule" (or "no rules used")
 
-**Tests**
-- `npm run test:logic`: all 147 pass (7 new).
-- `npm test`: the real model scored a played 5-player game, 10 pairs in 228 ms.
-- The preview check found no errors on `index.html` or `tune.html`.
+**Finished screen (`finished.js`, `css/game.css`)**
+- Once the scores are in, the order is: 🏆 the 3 award cards, then a **Best Preservers** card, then a **Best Saboteurs** card. These are two stacked cards, not tabs, so it's simpler on a phone.
+- The current per-chain score list moves into a collapsed "📜 Chain scores" section. P12 will replace it with the reveal.
 
-**How to check**
-1. Tap the preview (globe) button and host a game.
-2. Use 🧪 Testing to fill the game with bots and get through the rules and every round.
-3. On the finished screen, watch the scorer load and the scores appear.
+**Edge cases**
+- Ties share a rank and an award, as in P4 (equal to 0.1).
+- No damage from any rule → no Master Saboteur.
+- Everyone tied → no Agent of Chaos.
+- No standings until scoring is done. A host reload rebuilds them from the saved measurements.
 
-**Next:** P11 (leaderboards + awards) in a new session, which can build on `view.scores`. Later ideas: show the pairs with the lowest scores first, and photos of the drawings (open question 2).
+**Test: `tests/standings-stage.test.js` (memory transport + fake model)**
+- Plays a full 8-player game, including one revenge, then compares every phone's `view.standings` to what `scoreGame()` (P4) gives on the same transformations.
+- Checks a tie case and the case where all sentences are identical (no Master Saboteur, no Agent of Chaos).
+- Checks the texts from `standings-view.js`.
+- `npm run test:logic` and `npm test` must still pass.
+
+Then I set P11 to ✅ in the spec, log the decisions and commit.
+
+**Is this OK, or do you want changes?** For example: tabs instead of stacked cards, hiding the chain list completely, or other award emojis.

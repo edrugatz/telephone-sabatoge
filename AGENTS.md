@@ -18,6 +18,6 @@ Static site (no build step), meant for GitHub Pages. Scores two sentences 0–10
 - The model's ONNX files have non-standard names: load them with `subfolder: 'onnx'`, `model_file_name: 'model_qint8_arm64'`, `dtype: 'fp32'`. Score = sigmoid(logit).
 - Scoring is split: `measure()` runs the model (logits A→B and B→A in one batch), and `toScore()` applies the tuning curve `sigmoid((logit−offset)/temperature)` instantly. The debug panel (`js/tuning.js`) saves its settings in localStorage. The use case is a telephone word game: it rewards same meaning, not same words.
 - `js/similarity.js` is shared by the browser and the test. Keep it free of DOM/Node APIs. It holds the pinned `TRANSFORMERS_URL` and the tune page's `TUNING_STORAGE_KEY`.
-- Game scoring (P10): only the host phone loads the model (`js/ui/model.js`), `host.score()` fills `state.scoring`; tests fake `measure` (`tests/scoring-stage.test.js`).
+- Game scoring (P10): only the host phone loads the model (`js/ui/model.js`), `host.score()` fills `state.scoring`; tests fake `measure` (`tests/scoring-stage.test.js`). Leaderboards/awards (P11): `host.standings()` → `view.standings`, texts in `js/ui/standings-view.js`.
 - User preferences: English only, Compare button (no live scoring), TinyBERT only.
 - Always overwrite `response.md` (repo root) with your full final reply each turn: the PolyDev UI sometimes swallows chat responses.

@@ -37,6 +37,7 @@ import {
   GameError,
 } from './game.js';
 import { measureAll, applyScores } from './scoring.js';
+import { scoreGame } from './score.js';
 import { gamePaths, randomCode } from '../sync/transport.js';
 
 export const HOST_VERSION = 1;
@@ -96,10 +97,14 @@ export function scoringProgress(state) {
  * The scored transformations, once scoring is done: chain order, then round order.
  * [{ chain, creator, round, drawer, interpreter, incoming, outgoing, similarity }] (names, not ids).
  */
+function tunedTransformations(state) {
+  return applyScores(transformationsOf(state.game), state.scoring.measured, state.scoring.settings);
+}
+
 export function scoredTransformations(state) {
   if (state.scoring?.status !== 'done') return null;
   const { game } = state;
-  return applyScores(transformationsOf(game), state.scoring.measured, state.scoring.settings).map((t) => ({
+  return tunedTransformations(state).map((t) => ({
     chain: t.chain,
     creator: game.players[t.chain],
     round: t.round,
@@ -109,6 +114,36 @@ export function scoredTransformations(state) {
     outgoing: t.outgoing,
     similarity: t.similarity,
   }));
+}
+
+/**
+ * Leaderboards + awards (P11), once scoring is done: score.js scoreGame() with names instead of ids.
+ * { awards: [{ id, title, description, winners: [name], value }],
+ *   preservers: [{ name, value, rank }]                       // value = meaning lost, lower is better
+ *   saboteurs: [{ name, value, rank, uses, perUse|null }] }   // value = damage caused by their rules
+ * Only totals: no rule texts, no routing.
+ */
+export function standings(state) {
+  if (state.scoring?.status !== 'done') return null;
+  const { game } = state;
+  const result = scoreGame(tunedTransformations(state), game.players);
+  return {
+    awards: result.awards.map(({ id, title, description, winners, value }) => ({
+      id,
+      title,
+      description,
+      winners: winners.map((p) => game.players[p]),
+      value,
+    })),
+    preservers: result.leaderboards.preservers.map(({ name, value, rank }) => ({ name, value, rank })),
+    saboteurs: result.leaderboards.saboteurs.map(({ player, name, value, rank }) => ({
+      name,
+      value,
+      rank,
+      uses: result.players[player].ruleUses,
+      perUse: result.players[player].sabotagePerUse,
+    })),
+  };
 }
 
 // ---- Views ------------------------------------------------------------------
@@ -165,6 +200,7 @@ export function playerView(state, uid) {
   if (stage === 'finished') {
     view.scoring = scoringProgress(state);
     view.scores = scoredTransformations(state);
+    view.standings = standings(state);
   }
   return view;
 }
