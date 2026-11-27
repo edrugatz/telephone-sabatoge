@@ -5,7 +5,8 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P7 done: game logic, Firebase sync, app shell + home + lobby, rule submission; P8 next).** Existing code: the
+Status: **in progress (P1–P8 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
+screen; P9 next).** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -211,8 +212,10 @@ schedule, ruleAt, ruleWarnings, round, sentences[r][c], submitted[r][p], revenge
   `revenge { round, text, target? }`. `submit` and `revenge` carry the round, and a stale one is refused (`stale`).
   Refusal reasons: game.js reasons plus `bad-message`, `not-joined`, `name-taken`, `started`, `full`, `host`, `phase`.
 - **View** (`playerView`): `code, stage, you { player, name, host } | null, players, results`, plus `removed` (not
-  seated), `rules { mine, missing }` (rules stage), `round, lastRound, task (getTask), revenge (revengeOptions),
-  waitingFor` (playing), `myRevenge`. It never holds the schedule, chains or other players' rules.
+  seated), `rules { mine, missing }` (rules stage), `round, lastRound, roundStartedAt, task (getTask), revenge
+  (revengeOptions), waitingFor` (playing), `myRevenge`. It never holds the schedule, chains or other players' rules.
+- **Round timer**: the host state has `roundStartedAt` (host clock, ms), set by `start()` and every `advance()`
+  (`Host` takes a `now` option for tests). It is in each player's view, so all phones count down together.
 - **Client** (`Client.open`, `Client.join`): `view`, `public`, `watch(cb)`, `watchPublic(cb)`, and `send` / `join` /
   `leave` / `submitRules` / `submitTask` / `revenge`, each resolving with the host's result for that message.
 
@@ -277,7 +280,7 @@ Three awards:
 ### App shell (`index.html`, `js/ui/`, P6)
 
 - `main.js` is the controller: connect Firebase → restore the session → show the screen for the view's `stage`
-  (`lobby` → lobby; `rules` → rules screen; `playing` / `finished` → placeholder until P8+). `router.js` is state-driven
+  (`lobby` → lobby; `rules` → rules screen; `playing` → task screen; `finished` → placeholder until P10+). `router.js` is state-driven
   (`show(name, element)`), not URL-driven. Screens are functions returning an element (`screens/*.js`, `dom.js` `h()`).
 - **Session** (`session.js`, localStorage, no DOM): `tps.session` `{ code, role: host|player, uid, name, bots }`,
   `tps.hostBackup` (last `onSave` JSON, used by `Host.resume` when the database has no host state), `tps.name`
@@ -312,6 +315,28 @@ Three awards:
   is in, **← Back to lobby** (confirm: drops all rules), 🧪 Testing → **Bots write rules** (`bots.writeRules`:
   3 random rules from `BOT_RULES` for each bot still missing, reopening bot clients after a reload).
   Player: "Waiting for the host to start".
+
+### Preparation + task screen (`js/ui/screens/task.js`, `js/ui/timer.js`, P8)
+
+- **Preparation**: the host's **Start the game 🎬** runs `host.start()` (pool check → `generateSchedule` +
+  `validateSchedule` → `assignRules`). Meanwhile the button shows a spinner, "Preparing the game…". If it fails, the rules
+  screen shows an error card ("Couldn't prepare the game" + the reason) and the button becomes **Try again**. The
+  other phones go straight to their task when the stage becomes `playing`.
+- **Task screen** (component `createTaskScreen` → `{ element, update }`, like the rules screen): the round chip
+  ("Round 0 · warm-up" / "Round r of k"), the timer, the task (✍️ Write a sentence / 🎨 Draw this / 🔍 What does the
+  drawing show?), the sentence to draw (drawing tasks), and one card per active rule: "😈 Sabotage from X" or
+  "🔥 Revenge from X" (revenge highlighted), or "🍀 No rule this time" (no rule card in round 0). Writing and
+  interpreting have a text box (Enter sends, empty is refused) and **Send my sentence ✅**. Drawing has **I'm done
+  drawing ✅**. After sending: "✅ Done!".
+- The typed sentence is kept outside the DOM, in memory and in localStorage (`tps.taskDraft` `{ code, round, text }`).
+  A draft from another round is ignored.
+- **Timer** (advisory, `timer.js`, no DOM): write 60 s, draw 90 s, interpret 45 s (`TASK_SECONDS`), counted from the
+  view's `roundStartedAt`. It turns orange in the last 10 s, and at 0 it shows "⏰ Time's up!". Nothing is forced. A
+  phone clock behind the host's is clamped to the full time.
+- Live part: "Finished n / N" + who is still busy. Host: **Next round →** (or **Finish the game 🏁** on the last round),
+  enabled when everyone is done. 🧪 Testing → **Bots do their tasks** (`bots.doTasks`: each busy bot sends a random
+  `BOT_SENTENCES` sentence for the current round; the host ignores it on drawing tasks). Player: "Waiting for the host to
+  start the next round".
 
 ## 11. Design philosophy
 
@@ -349,8 +374,8 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P5b | Sync layer | Transport interface with a Firebase and an in-memory implementation; host loop (inbox → `game.js` → per-player views); join by game code; Firebase security rules file; setup steps for the user's Firebase project | Node, in-memory transport: 8 clients join, play a full game through messages; host reload mid-game resumes; duplicate/late/invalid messages handled; a view never holds another player's rules | ✅ |
 | P6 | App shell + home + lobby | Move the current scorer page to `tune.html`; new `index.html` game shell with screen router, home (create / join with code + name) and live lobby; session (uid, code, role) in localStorage | Host creates a game, 7 more players join (bot button for testing on one phone), reload on either side and the lobby is still there; the tune page still works | ✅ |
 | P7 | Rule submission | 3 rules per player with a type toggle; validation | Every player can enter rules; Start stays blocked until all are in | ✅ |
-| P8 | Preparation + task screen | Generate and validate the schedule (with a spinner and error text); task screen with round, task, sentence, rule + author (or "No rule this time"), timer | Start an 8-player game; each player's round-1 task shows the correct rule or none | ⬜ |
-| P9 | Interpretation + pass + round progression | Sentence input, "done & passed" confirmation, "Pass your paper to X", next round | Play a full game through the UI with dummy input; it ends on interpretations | ⬜ |
+| P8 | Preparation + task screen | Generate and validate the schedule (with a spinner and error text); task screen with round, task, sentence, rule + author (or "No rule this time"), advisory timer; text input + Done for every task type, host's basic Next round, bots do their tasks | Start an 8-player game; each player's round-1 task shows the correct rule or none (`tests/task-stage.test.js`) | ✅ |
+| P9 | Pass + round progression | "Pass your paper to X" (and what X will do), "done & passed" confirmation, a better waiting / round-progression screen, the last round handed to the reveal | Play a full game through the UI with dummy input; it ends on interpretations | ⬜ |
 | P9b | Revenge rule UI | "Take revenge on X?" prompt on the task/pass screen when `revengeOptions` allows it, with a rule input of the right type and a skip option; the target's next task shows the rule marked as revenge, with the author's name | In a played game, take revenge once: the target sees it next round, the prompt never appears again for that player, and an unavailable case shows no prompt | ⬜ |
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes | ⬜ |
 | P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game | ⬜ |
@@ -389,12 +414,11 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 
 ## 14. Open questions
 
-(Questions 1 and 5 are answered, see the Decision log. Numbers are kept stable.)
+(Questions 1, 4 and 5 are answered, see the Decision log. Numbers are kept stable.)
 
 2. **How drawings reach the reveal.** The app never sees the paper. Options: lay the papers out
    physically during the reveal, or take an optional photo per drawing (stored locally).
 3. **Paper format.** Does one paper (folded booklet) travel with each chain, or a new sheet per drawing?
-4. **Timer lengths** for drawing and writing, and whether the timer forces progression or is advisory.
 6. **Max chain length** for long games with many players (cap k?).
 
 ## 15. Decision log
@@ -417,4 +441,6 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | Open question 5: the sentence-similarity page stays as a debug/tuning page, moved to `tune.html` in P6. |
 | 2026-11-27 | P6: app shell (§10 App shell). Scorer page moved to `tune.html` (still `js/app.js`); game is `index.html` + `js/ui/`. State-driven router, session in localStorage with a host backup. Test bots are real Firebase users (named apps `bot-N`), not an offline mode, so they exercise the real sync; the Testing section is always shown to the host, collapsed. `connectFirebase(config, { name })` supports several apps per page. Tests: `tests/session.test.js`, `tests/bots.test.js` (memory transport: 7 bots join, host and player reload). |
 | 2026-11-27 | P7: rule submission screen (§10 Rule submission). Rules (and revenge rules) are at most 80 characters, enforced by game.js on the host and checked on the phone. Players can edit their rules until the host starts. The draft is kept outside the DOM (memory + localStorage) and live updates don't redraw the inputs. Bots write random built-in rules from the Testing section. Test: `tests/rules-stage.test.js`. |
+| 2026-11-27 | P8: preparation + task screen (§10). Scope moved from P9 into P8, because round 1 can't be reached without it: the text input + Done for every task (incl. the round-0 original sentence) and the host's basic **Next round**. P9 keeps the pass step, "done & passed", the waiting screen and the hand-off to the reveal. A failed Start shows an error card on the rules screen instead of a toast. Test: `tests/task-stage.test.js`. |
+| 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |

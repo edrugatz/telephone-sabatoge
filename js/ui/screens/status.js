@@ -1,5 +1,5 @@
 // Simple full-screen states (P6): loading, error with a retry, and the placeholder for stages that
-// get their screens in later packages (playing P8–P9, finished P10–P12).
+// get their screens in later packages (finished P10–P12; playing only while the task is loading).
 
 import { h } from '../dom.js';
 
@@ -20,7 +20,7 @@ export function errorScreen({ title = 'Something went wrong', message, onRetry, 
 }
 
 const STAGE_TEXT = {
-  playing: ['🎨', 'The game is running', 'Task screens arrive in a later update (P8).'],
+  playing: ['🎨', 'The game is running', 'Loading your task…'],
   finished: ['🏁', 'The game is over', 'Results arrive in a later update (P10–P12).'],
 };
 

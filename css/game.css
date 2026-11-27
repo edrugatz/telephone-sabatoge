@@ -184,6 +184,40 @@
 .rule-summary .tag { flex-shrink: 0; }
 .player.is-ready .player-avatar { border-color: var(--ok); }
 
+/* Preparation + task (P8) */
+.notice-error { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.btn[aria-busy="true"] { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.spinner.spinner-small { width: 18px; height: 18px; border-width: 3px; }
+.round-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pop) 16%, transparent);
+  color: var(--pop);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.timer { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.timer-low { color: var(--warn); }
+.timer-up { color: var(--danger); }
+.sentence-card {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  border-color: var(--accent);
+}
+.sentence-card::before { content: '“'; color: var(--muted); }
+.sentence-card::after { content: '”'; color: var(--muted); }
+.rule-active { display: flex; flex-direction: column; gap: 6px; border-color: var(--pop); }
+.rule-active.is-revenge { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.rule-from { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+.rule-text { margin: 0; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
+.rule-none, .done-card { display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.done-card { border-color: var(--ok); }
+.textarea { resize: none; line-height: 1.4; }
+
 /* Loading */
 .spinner {
   width: 40px;

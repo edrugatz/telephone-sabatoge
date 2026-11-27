@@ -5,7 +5,7 @@
 // live part (who is done, the host's Start button). The inputs, the focus and the phone keyboard stay.
 //
 //   const screen = createRulesScreen({ onDraftChange, onSend, onEdit, onStart, onBackToLobby, onEndGame, testing });
-//   screen.update({ view, isHost, draft, editing, busy, testing: { open, status } });
+//   screen.update({ view, isHost, draft, editing, busy, starting, startError, testing: { open, status } });
 //   router.show('rules', screen.element);
 
 import { h } from '../dom.js';
@@ -232,15 +232,34 @@ function liveSection(state, handlers) {
     return [progress, h('p', { class: 'waiting-note', text: note })];
   }
 
-  return [
-    progress,
-    h('button', {
+  // Preparation (P8): Start builds the routing and deals the rules on the host phone.
+  const { starting, startError } = state;
+  const startButton = h(
+    'button',
+    {
       class: 'btn btn-primary btn-block btn-big',
       type: 'button',
       disabled: busy || missing.length > 0,
-      text: missing.length ? `Waiting for ${missing.length} more…` : 'Start the game 🎬',
+      'aria-busy': starting ? 'true' : null,
       on: { click: handlers.onStart },
-    }),
+    },
+    starting ? h('span', { class: 'spinner spinner-small', 'aria-hidden': 'true' }) : null,
+    starting ? 'Preparing the game…' : missing.length ? `Waiting for ${missing.length} more…` : startError ? 'Try again 🎬' : 'Start the game 🎬',
+  );
+  const errorCard = startError && !starting
+    ? h(
+      'div',
+      { class: 'card notice-error stack', role: 'alert' },
+      h('p', { class: 'card-title', text: "😵 Couldn't prepare the game" }),
+      h('p', { class: 'hint', text: startError }),
+      h('p', { class: 'hint', text: 'Nothing was lost: try again, or go back to the lobby to change the players.' }),
+    )
+    : null;
+
+  return [
+    progress,
+    errorCard,
+    startButton,
     h('button', { class: 'btn btn-ghost btn-block', type: 'button', disabled: busy, text: '← Back to lobby', on: { click: handlers.onBackToLobby } }),
     testingSection({ ...state.testing, ...handlers.testing, busy, missing }),
     h('button', { class: 'btn btn-link', type: 'button', text: 'Close this game', on: { click: handlers.onEndGame } }),

@@ -16,6 +16,7 @@ import { inviteLink } from './config.js';
 import { homeScreen } from './screens/home.js';
 import { lobbyScreen, BOT_TARGET } from './screens/lobby.js';
 import { createRulesScreen } from './screens/rules.js';
+import { createTaskScreen } from './screens/task.js';
 import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
 
@@ -38,6 +39,11 @@ const app = {
   rulesScreen: null,
   ruleDraft: null,
   rulesEditing: false,
+  // Preparation + task stage (P8)
+  starting: false,
+  startError: null,
+  taskScreen: null,
+  taskDraft: null, // { round, text }
 };
 
 function safeStorage() {
@@ -172,6 +178,7 @@ function detach() {
   Object.assign(app, {
     session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' },
     rulesScreen: null, ruleDraft: null, rulesEditing: false,
+    starting: false, startError: null, taskScreen: null, taskDraft: null,
   });
 }
 
@@ -189,6 +196,7 @@ function render() {
     return leaveToHome(view?.removed ? 'The host removed you from the game.' : "You're not in this game any more.");
   }
   const isHost = view.you.host && !!app.host;
+  if (view.stage !== 'rules') app.startError = null;
   if (view.stage === 'lobby') {
     const hostSeats = app.host?.state.seats ?? [];
     router.show('lobby', lobbyScreen({
@@ -210,6 +218,8 @@ function render() {
     }));
   } else if (view.stage === 'rules') {
     showRules(view, isHost);
+  } else if (view.stage === 'playing' && view.task) {
+    showTask(view, isHost);
   } else {
     router.show('stage', stageScreen({ view, isHost, onEndGame: endGame }));
   }
@@ -225,6 +235,8 @@ function showRules(view, isHost) {
     draft: app.ruleDraft,
     editing: app.rulesEditing || !(view.rules?.mine?.length > 0),
     busy: app.busy,
+    starting: app.starting,
+    startError: app.startError,
     testing: { open: app.testing.open, status: app.testing.status },
   };
   const fresh = router.current !== 'rules' || !app.rulesScreen;
@@ -236,7 +248,7 @@ function showRules(view, isHost) {
       },
       onSend: sendRules,
       onEdit: editRules,
-      onStart: () => hostAction(() => app.host.start()),
+      onStart: startGame,
       onBackToLobby: () => {
         if (confirm("Back to the lobby? Everyone's rules will be dropped.")) hostAction(() => app.host.backToLobby());
       },
@@ -277,6 +289,72 @@ function editRules() {
   }
   app.rulesEditing = true;
   render();
+}
+
+// ---- Preparation + task stage (P8) ------------------------------------------------------
+
+/** Host: build the routing and deal the rules. A failure stays on the rules screen as an error card. */
+async function startGame() {
+  if (app.busy || !app.host) return;
+  app.busy = true;
+  app.starting = true;
+  app.startError = null;
+  render();
+  try {
+    await app.host.start();
+  } catch (error) {
+    console.error(error);
+    app.startError = error.message;
+  } finally {
+    app.busy = false;
+    app.starting = false;
+    if (app.client) render();
+  }
+}
+
+function showTask(view, isHost) {
+  const { round } = view.task;
+  if (app.taskDraft?.round !== round) app.taskDraft = { round, text: store.loadTaskDraft(view.code, round) };
+  const fresh = router.current !== 'task' || !app.taskScreen;
+  if (fresh) {
+    app.taskScreen = createTaskScreen({
+      // The screen stays mounted across rounds: read the round when typing, not when it was built.
+      onDraftChange: (text) => {
+        const current = app.view?.task?.round;
+        if (!Number.isInteger(current)) return;
+        app.taskDraft = { round: current, text };
+        store.saveTaskDraft(app.view.code, current, text);
+      },
+      onSubmit: submitTask,
+      onNextRound: () => hostAction(() => app.host.advance()),
+      onEndGame: endGame,
+      testing: {
+        onToggle: (open) => (app.testing.open = open),
+        onBotTasks: () => botAction(botsDoTasks),
+      },
+    });
+  }
+  app.taskScreen.update({
+    view,
+    isHost,
+    draft: app.taskDraft.text,
+    busy: app.busy,
+    testing: { open: app.testing.open, status: app.testing.status },
+  });
+  if (fresh) router.show('task', app.taskScreen.element);
+}
+
+async function submitTask(text) {
+  if (app.busy || !app.client) return;
+  app.busy = true;
+  render();
+  try {
+    const result = await app.client.submitTask(text);
+    toast(result.ok ? 'Done ✅' : result.message);
+  } finally {
+    app.busy = false;
+    if (app.client) render();
+  }
 }
 
 async function hostAction(fn) {
@@ -375,6 +453,14 @@ async function botsWriteRules() {
   render();
   const sent = await app.bots.writeRules(app.host.state.seats, app.view?.rules?.missing ?? []);
   app.testing.status = sent ? `${sent} bot${sent === 1 ? '' : 's'} wrote rules 🤖` : 'No bot is missing rules';
+}
+
+async function botsDoTasks() {
+  app.testing.status = 'Bots are doing their tasks…';
+  render();
+  const { waitingFor = [], round } = app.view ?? {};
+  const done = await app.bots.doTasks(app.host.state.seats, waitingFor, round);
+  app.testing.status = done ? `${done} bot${done === 1 ? '' : 's'} finished 🤖` : 'No bot is still busy';
 }
 
 boot();

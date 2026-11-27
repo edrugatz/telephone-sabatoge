@@ -8,6 +8,7 @@
 //   const bots = new Bots({ connect, code, apps: session.bots, onApps: (apps) => save(apps) });
 //   await bots.add(host.state.seats);   // → { app, uid, name }
 //   await bots.writeRules(host.state.seats, view.rules.missing);   // → number of bots that sent rules
+//   await bots.doTasks(host.state.seats, view.waitingFor, view.round);   // → number of bots that finished
 
 import { Client } from '../game/client.js';
 import { GameError } from '../game/game.js';
@@ -31,6 +32,18 @@ export const BOT_RULES = {
     'Include a number',
   ],
 };
+
+export const BOT_SENTENCES = [
+  'A cat rides a bicycle to the moon', 'Grandma wins the dance battle', 'The pizza is plotting revenge',
+  'A shark sells ice cream at the beach', 'Two robots fall in love at a bus stop', 'The king lost his crown in the soup',
+  'A dragon is afraid of a tiny mouse', 'My umbrella flew away with the birds', 'A snowman sunbathing on a hot day',
+  'The teacher turned into a giant frog',
+];
+
+/** A random made-up sentence for a bot's writing or interpreting task. */
+export function botSentence(random = Math.random) {
+  return BOT_SENTENCES[Math.floor(random() * BOT_SENTENCES.length)];
+}
 
 /** 3 different random bot rules: one drawing, one writing, and one of either. */
 export function botRules(random = Math.random) {
@@ -58,8 +71,27 @@ export class Bots {
    * rules; throws GameError when the host refuses them.
    */
   async writeRules(seats, missing) {
-    const wanted = new Set(missing.map((name) => name.toLowerCase()));
-    let sent = 0;
+    return this.eachSeated(seats, missing, async (client, seat) => {
+      const result = await client.submitRules(botRules(this.random));
+      if (!result.ok) throw new GameError(`${seat.name}: ${result.message}`, result.reason);
+    });
+  }
+
+  /**
+   * Every seated bot whose name is in `waiting` finishes its task of `round` (P8). Bots always send a
+   * random sentence; the host ignores it on drawing tasks. Resolves with the number of bots that finished.
+   */
+  async doTasks(seats, waiting, round) {
+    return this.eachSeated(seats, waiting, async (client, seat) => {
+      const result = await client.send('submit', { round, text: botSentence(this.random) });
+      if (!result.ok) throw new GameError(`${seat.name}: ${result.message}`, result.reason);
+    });
+  }
+
+  /** Run fn(client, seat) for each seated bot named in `names`, reopening clients after a reload. */
+  async eachSeated(seats, names, fn) {
+    const wanted = new Set(names.map((name) => name.toLowerCase()));
+    let count = 0;
     for (const app of this.apps) {
       const transport = await this.connect(app);
       const seat = seats.find((s) => s.uid === transport.uid);
@@ -69,11 +101,10 @@ export class Bots {
         client = await Client.open({ transport, code: this.code });
         this.clients.set(app, client);
       }
-      const result = await client.submitRules(botRules(this.random));
-      if (!result.ok) throw new GameError(`${seat.name}: ${result.message}`, result.reason);
-      sent++;
+      await fn(client, seat);
+      count++;
     }
-    return sent;
+    return count;
   }
 
   /** A bot app that isn't seated yet: an existing one first, else a new one. */

@@ -10,7 +10,8 @@
 //     seats: [{ uid, name }],            // index = player id once the rules stage opens
 //     game,                              // the game.js state object
 //     results: { [uid]: [{ id, ok, message?, reason? }] },   // last results of that uid's messages
-//     removed: [uid] }                   // players the host removed from the lobby
+//     removed: [uid],                    // players the host removed from the lobby
+//     roundStartedAt }                   // host clock (ms) when the current round began, for the timers
 //
 // Messages (inbox, written by clients): { from: uid, type, payload: JSON string, at }
 //   join { name } · leave {} · rules { rules: [{ type, text } ×3] } · submit { round, text? }
@@ -112,6 +113,7 @@ export function playerView(state, uid) {
   if (stage === 'playing') {
     view.round = game.round;
     view.lastRound = game.schedule.k;
+    view.roundStartedAt = state.roundStartedAt ?? null;
     view.task = getTask(game, p);
     view.revenge = revengeOptions(game, p);
     view.waitingFor = waitingFor(game).map((i) => game.players[i]);
@@ -210,15 +212,17 @@ function parseState(json) {
   state.game = loadGame(JSON.stringify(state.game));
   state.results ??= {};
   state.removed ??= [];
+  state.roundStartedAt ??= null;
   return state;
 }
 
 // ---- Host -----------------------------------------------------------------------
 
 export class Host {
-  constructor(transport, state, { onSave, onError } = {}) {
+  constructor(transport, state, { onSave, onError, now = Date.now } = {}) {
     this.transport = transport;
     this.state = state;
+    this.now = now;
     this.paths = gamePaths(state.code);
     this.onSave = onSave;
     this.onError = onError;
@@ -258,7 +262,7 @@ export class Host {
       results: {},
       removed: [],
     };
-    const host = new Host(transport, state, hooks);
+    const host = new Host(transport, state, { now, ...hooks });
     await host.publish();
     host.listen();
     return host;
@@ -376,6 +380,7 @@ export class Host {
       needStage(state, 'rules', 'The game can only start after the rules');
       startGame(state.game);
       state.stage = 'playing';
+      state.roundStartedAt = this.now();
     });
   }
 
@@ -384,6 +389,7 @@ export class Host {
     return this.action((state) => {
       needStage(state, 'playing', 'The game is not running');
       advanceRound(state.game);
+      state.roundStartedAt = this.now();
       if (state.game.phase === 'finished') state.stage = 'finished';
     });
   }
