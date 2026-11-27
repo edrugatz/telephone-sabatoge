@@ -21,6 +21,7 @@ import { finishedScreen } from './screens/finished.js';
 import { roundTitle } from './pass.js';
 import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
+import { loadScorer, onModelProgress, modelProgress, savedTuning } from './model.js';
 
 const router = createRouter(document.getElementById('screen'));
 const codeChip = document.getElementById('code-chip');
@@ -50,6 +51,9 @@ const app = {
   shownRound: null,
   // Revenge (P9b): this round's prompt state { round, open, skipped, text, target }.
   revenge: null,
+  // Scoring (P10, host phone): the model download started in the background during the game.
+  modelPreloaded: false,
+  scoringStarting: false,
 };
 
 function safeStorage() {
@@ -184,7 +188,7 @@ function detach() {
   Object.assign(app, {
     session: null, host: null, client: null, bots: null, view: null, busy: false, leaving: false, testing: { open: false, status: '' },
     rulesScreen: null, ruleDraft: null, rulesEditing: false,
-    starting: false, startError: null, taskScreen: null, taskDraft: null, shownRound: null, revenge: null,
+    starting: false, startError: null, taskScreen: null, taskDraft: null, shownRound: null, revenge: null, modelPreloaded: false, scoringStarting: false,
   });
 }
 
@@ -203,6 +207,7 @@ function render() {
   }
   const isHost = view.you.host && !!app.host;
   if (view.stage !== 'rules') app.startError = null;
+  if (isHost && (view.stage === 'playing' || view.stage === 'finished')) preloadModel();
   if (view.stage === 'lobby') {
     const hostSeats = app.host?.state.seats ?? [];
     router.show('lobby', lobbyScreen({
@@ -229,10 +234,59 @@ function render() {
   } else if (view.stage === 'finished') {
     if (app.shownRound !== null) announce('🏁 Game over! Papers to the reveal pile');
     app.shownRound = null;
-    router.show('finished', finishedScreen({ view, onEndGame: endGame }));
+    router.show('finished', finishedScreen({
+      view,
+      isHost,
+      download: isHost ? modelProgress() : null,
+      onRetry: () => hostAction(() => app.host.retryScoring()),
+      onEndGame: endGame,
+    }));
+    if (isHost) startScoring(view);
   } else {
     router.show('stage', stageScreen({ view, isHost, onEndGame: endGame }));
   }
+}
+
+// ---- Scoring (P10, host phone only) ----------------------------------------------------
+
+/** Start downloading the model once per game; a failure here is retried when scoring starts. */
+function preloadModel() {
+  if (app.modelPreloaded) return;
+  app.modelPreloaded = true;
+  loadScorer().catch((error) => console.warn('Model preload failed, will retry at the end', error));
+}
+
+// Download progress redraws the finished screen, at most every 300 ms.
+let progressTimer = null;
+onModelProgress(() => {
+  if (progressTimer || router.current !== 'finished') return;
+  progressTimer = setTimeout(() => {
+    progressTimer = null;
+    if (app.client && router.current === 'finished') render();
+  }, 300);
+});
+
+/** Once the game is finished: load the model (if needed) and score whatever isn't measured yet. */
+function startScoring(view) {
+  const { host } = app;
+  const status = view.scoring?.status;
+  if (!host || host.scoringRun || app.scoringStarting || !(status === 'loading' || status === 'scoring')) return;
+  app.scoringStarting = true;
+  loadScorer()
+    .then((scorer) => {
+      app.scoringStarting = false;
+      if (app.host !== host) return;
+      return host.score((a, b) => scorer.measure(a, b), savedTuning());
+    })
+    .then(() => {
+      if (app.host === host) announce('✅ The scores are in!');
+    })
+    .catch(async (error) => {
+      app.scoringStarting = false;
+      console.error(error);
+      // A model that didn't load: say so on every phone (a measure failure already did that).
+      if (app.host === host && host.state.scoring?.status !== 'error') await host.failScoring(error.message).catch(() => {});
+    });
 }
 
 // ---- Rules stage (P7) -----------------------------------------------------------------

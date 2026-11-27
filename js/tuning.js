@@ -1,9 +1,9 @@
 // Debug tuning panel: curve sliders, curve preview, and a calibration list of pairs
 // that re-scores instantly as the sliders move (the model runs once per pair).
-import { DEFAULT_SETTINGS, toScore, curve } from './similarity.js';
+import { DEFAULT_SETTINGS, TUNING_STORAGE_KEY, toScore, curve } from './similarity.js';
 import { EXAMPLES } from './examples.js';
 
-const SETTINGS_KEY = 'ss-tuning-settings-v1';
+const SETTINGS_KEY = TUNING_STORAGE_KEY;
 const PAIRS_KEY = 'ss-tuning-pairs-v1';
 const LOGIT_MIN = -6;
 const LOGIT_MAX = 5;

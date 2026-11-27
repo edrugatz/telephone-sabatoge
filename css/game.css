@@ -259,6 +259,19 @@
 .revenge-actions .btn-ghost { flex: 0 0 auto; }
 .revenge-card.is-sent { border-style: dashed; }
 
+/* Scoring (P10) */
+.scoring-card { border-color: var(--accent); }
+.scoring-card.is-done { border-color: var(--ok); }
+.scoring-card.is-error { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--card)); }
+.scoring-card .card-title, .scoring-card .hint { overflow-wrap: anywhere; }
+.score-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.score-step { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.score-step:first-child { padding-top: 0; border-top: none; }
+.score-who { margin: 0; color: var(--muted); font-size: 0.85rem; font-weight: 700; overflow-wrap: anywhere; }
+.score-pair { margin: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.score-value { margin: 0; }
+.score-value strong { color: var(--score-color, var(--text)); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+
 /* Loading */
 .spinner {
   width: 40px;

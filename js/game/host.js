@@ -11,7 +11,9 @@
 //     game,                              // the game.js state object
 //     results: { [uid]: [{ id, ok, message?, reason? }] },   // last results of that uid's messages
 //     removed: [uid],                    // players the host removed from the lobby
-//     roundStartedAt }                   // host clock (ms) when the current round began, for the timers
+//     roundStartedAt,                    // host clock (ms) when the current round began, for the timers
+//     scoring }                          // finished stage (P10): { status: 'loading' | 'scoring' | 'done' | 'error',
+//                                        //   total, measured: [{ logitAB, logitBA, exact } | null], settings, error }
 //
 // Messages (inbox, written by clients): { from: uid, type, payload: JSON string, at }
 //   join { name } · leave {} · rules { rules: [{ type, text } ×3] } · submit { round, text? }
@@ -30,9 +32,11 @@ import {
   advanceRound,
   revengeOptions,
   submitRevenge,
+  transformationsOf,
   loadGame,
   GameError,
 } from './game.js';
+import { measureAll, applyScores } from './scoring.js';
 import { gamePaths, randomCode } from '../sync/transport.js';
 
 export const HOST_VERSION = 1;
@@ -41,6 +45,8 @@ export const MAX_NAME_LENGTH = 20;
 export const MESSAGE_TYPES = ['join', 'leave', 'rules', 'submit', 'revenge'];
 const RESULTS_KEPT = 10;
 const CODE_TRIES = 10;
+/** While scoring, progress is published at most this often (ms, host clock). */
+export const SCORING_PUBLISH_MS = 750;
 
 const fail = (message, reason, details) => {
   throw new GameError(message, reason, details);
@@ -72,6 +78,39 @@ function needRound(game, round) {
   if (round !== game.round) fail('That was for a round that is already over', 'stale');
 }
 
+// ---- Scoring (P10) ----------------------------------------------------------------
+
+function newScoring(game) {
+  const total = transformationsOf(game).length;
+  return { status: 'loading', total, measured: Array(total).fill(null), settings: null, error: null };
+}
+
+/** Progress for every phone: { status, done, total, error }. */
+export function scoringProgress(state) {
+  const s = state.scoring;
+  if (!s) return null;
+  return { status: s.status, done: s.measured.filter(Boolean).length, total: s.total, error: s.error ?? null };
+}
+
+/**
+ * The scored transformations, once scoring is done: chain order, then round order.
+ * [{ chain, creator, round, drawer, interpreter, incoming, outgoing, similarity }] (names, not ids).
+ */
+export function scoredTransformations(state) {
+  if (state.scoring?.status !== 'done') return null;
+  const { game } = state;
+  return applyScores(transformationsOf(game), state.scoring.measured, state.scoring.settings).map((t) => ({
+    chain: t.chain,
+    creator: game.players[t.chain],
+    round: t.round,
+    drawer: game.players[t.drawer],
+    interpreter: game.players[t.interpreter],
+    incoming: t.incoming,
+    outgoing: t.outgoing,
+    similarity: t.similarity,
+  }));
+}
+
 // ---- Views ------------------------------------------------------------------
 
 /** What everyone in the game may see. */
@@ -86,6 +125,7 @@ export function publicView(state) {
     lastRound: game.schedule?.k ?? null,
     waitingFor: playing ? waitingFor(game).map((p) => game.players[p]) : [],
     missingRules: stage === 'rules' ? playersMissingRules(game).map((p) => game.players[p]) : [],
+    scoring: stage === 'finished' ? scoringProgress(state) : null,
   };
 }
 
@@ -121,6 +161,10 @@ export function playerView(state, uid) {
   if (stage === 'playing' || stage === 'finished') {
     const own = game.revenges.find((rv) => rv.author === p);
     view.myRevenge = own ? { target: own.target, targetName: game.players[own.target], round: own.round, text: own.text } : null;
+  }
+  if (stage === 'finished') {
+    view.scoring = scoringProgress(state);
+    view.scores = scoredTransformations(state);
   }
   return view;
 }
@@ -213,6 +257,11 @@ function parseState(json) {
   state.results ??= {};
   state.removed ??= [];
   state.roundStartedAt ??= null;
+  if (state.stage === 'finished') {
+    state.scoring ??= newScoring(state.game); // a game that finished before P10
+    // Scoring stopped with the reload: it continues (from the saved measurements) once the model is back.
+    if (state.scoring.status === 'scoring') state.scoring.status = 'loading';
+  }
   return state;
 }
 
@@ -229,6 +278,8 @@ export class Host {
     this.published = {};
     this.queue = Promise.resolve();
     this.offInbox = null;
+    this.stopped = false;
+    this.scoringRun = null;
   }
 
   get code() {
@@ -308,6 +359,7 @@ export class Host {
   stop() {
     this.offInbox?.();
     this.offInbox = null;
+    this.stopped = true;
   }
 
   async handle(key, message) {
@@ -390,7 +442,81 @@ export class Host {
       needStage(state, 'playing', 'The game is not running');
       advanceRound(state.game);
       state.roundStartedAt = this.now();
-      if (state.game.phase === 'finished') state.stage = 'finished';
+      if (state.game.phase === 'finished') {
+        state.stage = 'finished';
+        state.scoring = newScoring(state.game);
+      }
+    });
+  }
+
+  // Scoring (P10): the host phone runs the model on every transformation and publishes the results.
+
+  /**
+   * Measure every transformation not measured yet, publishing progress at most every SCORING_PUBLISH_MS.
+   * `settings` (tuning curve) are fixed the first time scoring starts. A failure sets status 'error' and
+   * rejects. Calling it while it runs returns the same promise; after `stop()` it ends early.
+   * @param {(a: string, b: string) => Promise<{ logitAB, logitBA, exact }>} measure
+   */
+  score(measure, settings) {
+    this.scoringRun ??= this.runScoring(measure, settings).finally(() => (this.scoringRun = null));
+    return this.scoringRun;
+  }
+
+  async runScoring(measure, settings) {
+    if (this.state.stage !== 'finished') fail('Scoring starts when the game is finished', 'phase');
+    if (this.state.scoring.status === 'done') return;
+    await this.action((state) => {
+      state.scoring.status = 'scoring';
+      state.scoring.settings ??= settings ?? null;
+      state.scoring.error = null;
+    });
+    const pending = new Map();
+    let lastPublish = -Infinity;
+    const flush = () =>
+      this.action((state) => {
+        for (const [i, m] of pending) state.scoring.measured[i] = m;
+        pending.clear();
+        if (state.scoring.measured.every(Boolean)) state.scoring.status = 'done';
+      });
+    try {
+      const transformations = transformationsOf(this.state.game);
+      await measureAll(transformations, measure, {
+        measured: this.state.scoring.measured,
+        shouldStop: () => this.stopped,
+        onMeasured: async (i, m, done) => {
+          pending.set(i, m);
+          const now = this.now();
+          if (done === transformations.length || now - lastPublish >= SCORING_PUBLISH_MS) {
+            lastPublish = now;
+            await flush();
+          }
+        },
+      });
+      if (pending.size || (!this.stopped && this.state.scoring.status !== 'done')) await flush();
+    } catch (error) {
+      if (!this.stopped) await this.failScoring(error.message).catch(() => {});
+      throw error;
+    }
+  }
+
+  /** Scoring can't go on (e.g. the model didn't load): every phone shows it, the host can retry. */
+  failScoring(message) {
+    return this.action((state) => {
+      needStage(state, 'finished', 'The game is not finished');
+      if (state.scoring.status === 'done') return;
+      state.scoring.status = 'error';
+      state.scoring.error = String(message || 'Scoring failed');
+    });
+  }
+
+  /** After an error: back to 'loading', so the host phone tries again. */
+  retryScoring() {
+    return this.action((state) => {
+      needStage(state, 'finished', 'The game is not finished');
+      if (state.scoring.status === 'error') {
+        state.scoring.status = 'loading';
+        state.scoring.error = null;
+      }
     });
   }
 

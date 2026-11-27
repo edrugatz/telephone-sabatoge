@@ -9,6 +9,10 @@
 export const MODEL_ID = 'cross-encoder/stsb-TinyBERT-L4';
 // The repo ships quantized ONNX files with non-standard names (~15 MB).
 export const MODEL_FILE = 'model_qint8_arm64';
+// Transformers.js build used by the browser pages (tune.html and the game's host phone). Pinned.
+export const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/+esm';
+// localStorage key of the tuning settings saved by tune.html (the game uses them on the host phone).
+export const TUNING_STORAGE_KEY = 'ss-tuning-settings-v1';
 
 /**
  * Tuning curve: score = sigmoid((logit - offset) / temperature) * 100.
@@ -70,6 +74,18 @@ export function toScore(m, settings = DEFAULT_SETTINGS) {
   const tuned = curve(logit, { offset, temperature });
   const score = m.exact ? 100 : Math.round(tuned * 1000) / 10;
   return { score, logit, raw, exact: m.exact };
+}
+
+/** Settings read from storage, with anything missing or invalid replaced by the default. */
+export function cleanSettings(raw) {
+  const s = raw && typeof raw === 'object' ? raw : {};
+  const finite = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+  const temperature = finite(s.temperature, DEFAULT_SETTINGS.temperature);
+  return {
+    offset: finite(s.offset, DEFAULT_SETTINGS.offset),
+    temperature: temperature > 0 ? temperature : DEFAULT_SETTINGS.temperature,
+    symmetric: typeof s.symmetric === 'boolean' ? s.symmetric : DEFAULT_SETTINGS.symmetric,
+  };
 }
 
 /** The tuning curve alone: logit -> 0-1. */

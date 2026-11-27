@@ -1,6 +1,5 @@
 // UI wiring: loads the model, handles the form, renders results.
-import * as transformers from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/+esm';
-import { createScorer, toScore, describe } from './similarity.js';
+import { createScorer, toScore, describe, TRANSFORMERS_URL } from './similarity.js';
 import { EXAMPLES } from './examples.js';
 import { createTuning } from './tuning.js';
 
@@ -48,6 +47,7 @@ function onProgress(p) {
 async function loadModel() {
   const t0 = performance.now();
   try {
+    const transformers = await import(TRANSFORMERS_URL);
     scorer = await createScorer(transformers, { onProgress });
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
     els.status.classList.add('is-ready');
