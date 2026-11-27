@@ -1,5 +1,3 @@
-I've added a **Commit as you go** rule to `AGENTS.md`, under the workflow section.
+Committed and pushed to GitHub (`main`): "Add "commit as you go" rule to AGENTS.md".
 
-It says to commit each finished change right away with a clear message. That covers work packages, fixes and spec/doc updates. I can make commits myself, but I can't push from here, so after each commit I'll remind you to push to GitHub (`main`).
-
-Do you want me to commit this `AGENTS.md` change now?
+Committing also pushed it, so you don't need to push by hand. I've corrected the two lines in `AGENTS.md` that said I can't push. That fix is committed and pushed as well.

@@ -4,7 +4,7 @@
 
 **Workflow: one work package per session.** At the start of a session, take the first package in SPEC §12 that isn't done. Before writing any code, discuss the detailed implementation with the user (files, API, edge cases, how it will be tested) and wait for their agreement. Then implement it, run its test, set it to ✅ in §12, and record any decisions in the spec. Stop there; the next package is for a new session.
 
-**Commit as you go.** Whenever a change is completed (a work package, a fix, a doc/spec update), commit it right away with the polydev `git_commit` tool and a clear message; don't leave finished work uncommitted. The agent can't push, so after committing, remind the user to push to GitHub (github.com/edrugatz/telephone-sabatoge, `main`).
+**Commit as you go.** Whenever a change is completed (a work package, a fix, a doc/spec update), commit it right away with the polydev `git_commit` tool and a clear message; don't leave finished work uncommitted. `git_commit` also pushes to GitHub (github.com/edrugatz/telephone-sabatoge, `main`), and the user confirms each commit.
 
 Static site (no build step), meant for GitHub Pages. Scores two sentences 0–100 with the `cross-encoder/stsb-TinyBERT-L4` cross-encoder via Transformers.js (loaded from jsDelivr `/+esm`, version pinned in `js/app.js`).
 
@@ -12,7 +12,7 @@ Static site (no build step), meant for GitHub Pages. Scores two sentences 0–10
 - Test: `npm test` scores known pairs with the real model. It loads the *web* build in Node because onnxruntime-node won't load on Alpine/musl; see the shims in `scripts/smoke-test.mjs`.
 - Game logic tests: `npm run test:logic` (Node's built-in runner, `tests/*.test.js`, modules in `js/game/`).
 - Pages: `index.html` = the game (`js/ui/main.js`, screens in `js/ui/screens/`, `css/game.css`); `tune.html` = scorer/tuning debug page (`js/app.js`). Test bots: host lobby → 🧪 Testing (each bot is a named Firebase app with its own anonymous uid).
-- Other phones can't open the local preview (127.0.0.1 is the phone itself): multi-phone tests need the site published (GitHub Pages); set its address in `js/ui/config.js` `PUBLIC_URL` for invite links. Published at https://edrugatz.github.io/telephone-sabatoge/ (repo github.com/edrugatz/telephone-sabatoge, Pages from `main` / root). The agent can't push: the user pushes.
+- Other phones can't open the local preview (127.0.0.1 is the phone itself): multi-phone tests need the site published (GitHub Pages); set its address in `js/ui/config.js` `PUBLIC_URL` for invite links. Published at https://edrugatz.github.io/telephone-sabatoge/ (repo github.com/edrugatz/telephone-sabatoge, Pages from `main` / root). Commits made with the polydev `git_commit` tool are pushed there automatically.
 - Multi-phone sync: Firebase Realtime DB (host phone is the authority, `js/game/host.js` / `client.js`, transports in `js/sync/`). Tests use `memory-transport.js`; real config goes in `js/sync/firebase-config.js` (steps in `docs/firebase-setup.md`).
 - The model's ONNX files have non-standard names: load them with `subfolder: 'onnx'`, `model_file_name: 'model_qint8_arm64'`, `dtype: 'fp32'`. Score = sigmoid(logit).
 - Scoring is split: `measure()` runs the model (logits A→B and B→A in one batch), and `toScore()` applies the tuning curve `sigmoid((logit−offset)/temperature)` instantly. The debug panel (`js/tuning.js`) saves its settings in localStorage. The use case is a telephone word game: it rewards same meaning, not same words.
