@@ -8,6 +8,7 @@
 //   ruleDraft  { code, rules } the rules being typed in the rules stage (P7), so a reload keeps them
 //   taskDraft  { code, round, text } the sentence being typed on the task screen (P8)
 //   revengeDraft { code, round, text, target } the revenge rule being typed (P9b)
+//   reveal     { code, mode, chain, shown } where this phone is in the chain reveal (P12)
 
 import { normalizeCode } from '../sync/transport.js';
 import { normalizeDraft } from './rule-draft.js';
@@ -19,6 +20,7 @@ export const KEYS = {
   draft: 'tps.ruleDraft',
   taskDraft: 'tps.taskDraft',
   revengeDraft: 'tps.revengeDraft',
+  reveal: 'tps.reveal',
 };
 export const ROLES = ['host', 'player'];
 
@@ -102,6 +104,18 @@ export function createSessionStore(storage = memoryStorage()) {
       drop(KEYS.draft);
       drop(KEYS.taskDraft);
       drop(KEYS.revengeDraft);
+      drop(KEYS.reveal);
+    },
+
+    /** Keep where this phone is in the chain reveal ({ code, mode, chain, shown }). */
+    saveReveal(position) {
+      if (position && typeof position.code === 'string') write(KEYS.reveal, JSON.stringify(position));
+    },
+
+    /** The saved reveal position (raw; reveal-view.js cleanPosition checks it), or null. */
+    loadReveal() {
+      const json = read(KEYS.reveal);
+      return json === null ? null : parse(json);
     },
 
     /** Keep the revenge rule being typed for this game's round (target = player index or null). */

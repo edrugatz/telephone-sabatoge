@@ -9,7 +9,7 @@ import { scoreGame } from '../js/game/score.js';
 import { measureAll, applyScores } from '../js/game/scoring.js';
 import { toScore, cleanSettings, DEFAULT_SETTINGS, TUNING_STORAGE_KEY } from '../js/similarity.js';
 import { Bots } from '../js/ui/bots.js';
-import { scoringCard, chainScores } from '../js/ui/scoring-view.js';
+import { scoringCard } from '../js/ui/scoring-view.js';
 import { savedTuning } from '../js/ui/model.js';
 import { memoryStorage } from '../js/ui/session.js';
 
@@ -80,7 +80,7 @@ async function finishedGame(seed, players, clock = { t: 1_000, step: 0 }) {
   return { backend, host, ana, bots, clients, now };
 }
 
-test('scoring card texts and the per-chain list', () => {
+test('scoring card texts', () => {
   assert.equal(scoringCard(null, { isHost: false }).state, 'loading');
   const hostLoading = scoringCard({ status: 'loading', done: 0, total: 24 }, { isHost: true, download: { loaded: 7.5e6, total: 15e6 } });
   assert.equal(hostLoading.title, '🧠 Loading the scorer…');
@@ -96,17 +96,6 @@ test('scoring card texts and the per-chain list', () => {
   assert.equal(playerError.retry, false);
   assert.match(playerError.title, /host's phone is having trouble/);
   assert.equal(scoringCard({ status: 'done', done: 24, total: 24 }, { isHost: false }).state, 'done');
-
-  const list = chainScores([
-    { chain: 1, creator: 'Ben', round: 3, drawer: 'Cy', interpreter: 'Ana', incoming: 'b', outgoing: 'c', similarity: 20 },
-    { chain: 0, creator: 'Ana', round: 1, drawer: 'Ben', interpreter: 'Cy', incoming: 'x', outgoing: 'y', similarity: 96 },
-    { chain: 1, creator: 'Ben', round: 1, drawer: 'Ana', interpreter: 'Dot', incoming: 'a', outgoing: 'b', similarity: 60 },
-  ]);
-  assert.deepEqual(list.map((c) => c.creator), ['Ana', 'Ben']);
-  assert.deepEqual(list[1].steps.map((s) => s.round), [1, 3]);
-  assert.deepEqual(list[1].steps.map((s) => s.label), ['Somewhat similar', 'Different']);
-  assert.equal(list[0].steps[0].label, 'Same meaning');
-  assert.deepEqual(chainScores(null), []);
 });
 
 test('tuning settings: tune.html values are used, broken ones fall back to the default', () => {
@@ -150,11 +139,12 @@ test('8-player game: the host scores every transformation, every phone sees the 
   const clock = { t: 1_000, step: 0 };
   const { backend, host, ana, bots, clients } = await finishedGame('p10-eight', 8, clock);
   const { k } = host.state.game.schedule;
-  const total = 8 * (k / 2);
+  const transformations = 8 * (k / 2);
+  const total = transformations + 8; // + one drift pair (original vs final) per chain
   for (const client of clients) {
     assert.equal(client.view.stage, 'finished');
     assert.deepEqual(client.view.scoring, { status: 'loading', done: 0, total, error: null });
-    assert.equal(client.view.scores, null);
+    assert.equal(client.view.reveal, null);
   }
 
   // Each measurement takes 1 s of host time, so progress is published after every one.
@@ -174,9 +164,10 @@ test('8-player game: the host scores every transformation, every phone sees the 
 
   const expected = applyScores(transformationsOf(host.state.game), host.state.scoring.measured, settings);
   for (const client of clients) {
-    const { scores, scoring } = client.view;
+    const { reveal, scoring } = client.view;
     assert.equal(scoring.status, 'done');
-    assert.equal(scores.length, total);
+    const scores = reveal.flatMap((chain) => chain.steps);
+    assert.equal(scores.length, transformations);
     for (const [i, s] of scores.entries()) {
       assert.ok(s.similarity >= 0 && s.similarity <= 100);
       assert.equal(s.similarity, expected[i].similarity, 'the host tuning curve is applied');
@@ -186,11 +177,11 @@ test('8-player game: the host scores every transformation, every phone sees the 
     assert.equal(JSON.stringify(client.view).includes('"rounds"'), false, 'still no routing in a view');
   }
   assert.deepEqual(host.state.scoring.settings, settings);
-  assert.equal(chainScores(ana.view.scores).length, 8);
+  assert.equal(ana.view.reveal.length, 8);
 
   // The scores feed the P4 engine.
   const result = scoreGame(expected, host.state.game.players);
-  assert.equal(result.transformations.length, total);
+  assert.equal(result.transformations.length, transformations);
   assert.equal(result.leaderboards.preservers.length, 8);
 
   // Done is final: scoring again measures nothing, and a late submit is refused.

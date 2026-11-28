@@ -328,8 +328,31 @@
 .board-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 700; overflow-wrap: anywhere; }
 .board-detail { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
 .board-value { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.chain-scores summary { cursor: pointer; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
-.chain-scores[open] summary { margin-bottom: 12px; }
+
+/* Chain reveal (P12) */
+.reveal-cta { border-color: var(--pop); }
+.reveal-back { padding-left: 0; }
+.reveal-heading { margin: 0; }
+.reveal-nav { display: flex; align-items: center; gap: 8px; padding: 8px; }
+.reveal-chain-title { flex: 1; margin: 0; text-align: center; font-weight: 800; overflow-wrap: anywhere; }
+.reveal-arrow { flex: 0 0 auto; min-width: 44px; min-height: 44px; font-size: 1.5rem; line-height: 1; }
+.reveal-arrow:disabled { opacity: 0.3; }
+.beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.beat p { margin: 0; overflow-wrap: anywhere; }
+.beat-title { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.beat-emoji { font-size: 1.4rem; line-height: 1; }
+.beat-sentence { font-size: 1.15rem; line-height: 1.4; }
+.beat.is-original { border-color: var(--accent); }
+.beat.is-drift { border-color: var(--pop); background: color-mix(in srgb, var(--pop) 8%, var(--card)); }
+.beat.is-latest { animation: beat-in 0.3s ease-out; }
+@keyframes beat-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.reveal-rule { padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.reveal-rule-title { color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+.reveal-rule.is-revenge { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
+.reveal-rule.is-revenge .reveal-rule-title { color: var(--danger); }
+.beat-norule { font-size: 0.85rem; }
+.reveal-actions { position: sticky; bottom: 12px; }
+@media (prefers-reduced-motion: reduce) { .beat.is-latest { animation: none; } }
 
 /* Loading */
 .spinner {

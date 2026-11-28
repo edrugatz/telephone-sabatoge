@@ -5,8 +5,9 @@
 > edit the affected section, move answered items from *Open questions* to the *Decision log* (with date).
 > Keep it describing the game as it is meant to be now, not a history of edits.
 
-Status: **in progress (P1–P11 done: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
-screen, pass + round progression, revenge UI, model scoring, leaderboards + awards, P11b playtest feedback; P12 next).** Existing code: the
+Status: **all packages done (P1–P12: game logic, Firebase sync, app shell + home + lobby, rule submission, preparation + task
+screen, pass + round progression, revenge UI, model scoring, leaderboards + awards, P11b playtest feedback, chain reveal).
+Next: playtesting and backlog triage.** Existing code: the
 sentence-similarity scorer (`js/similarity.js`, TinyBERT cross-encoder, debug page `tune.html`) which the game will reuse
 for scoring, the game logic modules in `js/game/`, the sync transports in `js/sync/`, and the game UI in `js/ui/`
 (see §6, §10 and §12).
@@ -213,8 +214,9 @@ schedule, ruleAt, ruleWarnings, round, sentences[r][c], submitted[r][p], revenge
   Refusal reasons: game.js reasons plus `bad-message`, `not-joined`, `name-taken`, `started`, `full`, `host`, `phase`.
 - **View** (`playerView`): `code, stage, you { player, name, host } | null, players, results`, plus `removed` (not
   seated), `rules { mine, missing }` (rules stage), `round, lastRound, roundStartedAt, task (getTask), revenge
-  (revengeOptions), waitingFor` (playing), `myRevenge`, `scoring { status, done, total, error }`, `scores` and `standings` (finished,
-  see §10 Scoring and Leaderboards). It never holds the schedule, or other players' rules; chains appear only as the finished `scores`.
+  (revengeOptions), waitingFor` (playing), `myRevenge`, `scoring { status, done, total, error }`, `reveal` and `standings` (finished,
+  see §10 Scoring, Leaderboards and Chain reveal). It never holds the schedule, or other players' rules; chains and rules appear only
+  in the finished `reveal`, once scoring is done.
 - **Round timer**: the host state has `roundStartedAt` (host clock, ms), set by `start()` and every `advance()`
   (`Host` takes a `now` option for tests). It is in each player's view, so all phones count down together.
 - **Client** (`Client.open`, `Client.join`): `view`, `public`, `watch(cb)`, `watchPublic(cb)`, and `send` / `join` /
@@ -351,8 +353,8 @@ Three awards:
   check your task here." The live part shows a progress bar and a chip per player (✅ done / ✍️ busy, you outlined).
 - **New round**: a toast "Round r · 🎨 Drawing" and a short vibration (where supported), not after a reload. The texts
   only name the next holder (already in `getTask`), never the chain.
-- **Finished**: "🏁 All chains are done!" + "Bring every paper to the reveal pile" + a "reveal is coming" card
-  (P10–P12) and Close this game. Toast + vibration when the game ends.
+- **Finished**: "🏁 All chains are done!" + "Bring every paper to the reveal pile", the scoring card, then the results
+  (P10–P12), and Close this game. Toast + vibration when the game ends.
 
 ### Revenge prompt (`js/ui/revenge.js`, task screen, P9b)
 
@@ -377,6 +379,8 @@ Three awards:
   by `tune.html`); the host starts the download in the background as soon as the stage is `playing` (again after a reload).
 - **Tuning curve**: the host phone's `tune.html` settings (localStorage `TUNING_STORAGE_KEY`, cleaned by `cleanSettings`),
   else the default. They are fixed in the state the first time scoring starts.
+- The model measures every transformation, then one **drift pair** per chain (original vs final interpretation, P12), in that
+  order in `scoring.measured`; `total` counts both. The leaderboards use only the transformations.
 - `measureAll(transformations, measure, { measured, onMeasured, shouldStop })` measures only the empty slots;
   `applyScores(transformations, measured, settings)` sets `similarity` (tuned) and the raw `measurement`
   `{ logitAB, logitBA, exact }`. Identical text scores 100.
@@ -385,28 +389,44 @@ Three awards:
   last one; a reload keeps the saved measurements (status back to `loading`) and continues with the rest.
   `failScoring(message)` (model didn't load, or a measure failed) and `retryScoring()` (back to `loading`; the host phone
   then tries again). Done is final.
-- **Views** (finished): `scoring { status, done, total, error }` and, once done, `scores: [{ chain, creator, round, drawer,
-  interpreter, incoming, outgoing, similarity }]` (names), the same for everyone.
+- **Views** (finished): `scoring { status, done, total, error }` and, once done, `reveal` (§10 Chain reveal), the same for everyone.
 - **Finished screen**: a scoring card (`scoring-view.js` `scoringCard`). Host: "🧠 Loading the scorer… x / y MB" bar, then
   "Scoring the chains… n / N"; players: a spinner, then the same bar. Error: the host gets the reason + **Try again 🔁**,
-  players "The host's phone is having trouble scoring". Done: toast "✅ The scores are in!" and a simple per-chain list
-  (`chainScores`: 🎨 drawer → 🔍 interpreter, "S" became "S′", score + label), now collapsed under the standings (P11)
-  until the P12 reveal replaces it.
+  players "The host's phone is having trouble scoring". Done: toast "✅ The scores are in!", then the standings (P11) and the
+  reveal button (P12).
 
 ### Leaderboards + awards (`host.js` `standings`, `js/ui/standings-view.js`, finished screen, P11)
 
 - `standings(state)` (host, once scoring is done) runs `scoreGame()` (§7) on the tuned transformations and swaps ids for
   names: `{ awards: [{ id, title, description, winners: [name], value }], preservers: [{ name, value, rank }],
   saboteurs: [{ name, value, rank, uses, perUse }] }`. Every finished view has it as `standings` (`null` before done), the same
-  for everyone. Totals only: no rule texts and no routing (those wait for the P12 reveal). A host reload rebuilds it from the
+  for everyone. Totals only: no rule texts and no routing (those are in `reveal`). A host reload rebuilds it from the
   saved measurements.
 - Texts (no DOM): `awardCards(standings, me)` → `{ id, emoji, title, winners ("Ana & Ben"), reason, value, mine }` (🛡️ Guardian
   of Meaning, 😈 Master Saboteur, 🌪️ Agent of Chaos; only the awards score.js gives). `boardRows(standings, me)` →
   `{ preservers, saboteurs }` rows `{ rank, medal (🥇🥈🥉, then "4."), name, value, detail, mine }`. Preservers: "12.3 lost".
   Saboteurs: "84.0 damage" + "3 rules · 28.0 per rule" or "no rules used". Values are shown to one decimal.
 - **Finished screen** (scores in): 🏆 Awards (one card each, "🎉 That's you!" for the winner), then two stacked cards,
-  **🛡️ Best Preservers** and **😈 Best Saboteurs** (your row outlined, "(you)"), then a collapsed **📜 Chain scores** with the
-  P10 list. Whether it is open is kept outside the DOM, so a re-render doesn't close it.
+  **🛡️ Best Preservers** and **😈 Best Saboteurs** (your row outlined, "(you)"), then the **🎬 Step through the chains** card (P12).
+
+### Chain reveal (`host.js` `revealOf`, `js/ui/reveal-view.js`, `js/ui/screens/reveal.js`, P12)
+
+- **Awards first, then the chains.** The finished screen shows the awards + leaderboards; its **🎬 Step through the chains**
+  button (later **🎬 Back to the chain reveal**) opens the reveal screen (router name `reveal`). **Each phone steps on its own**,
+  nothing is synced: the group lays the papers out as they go.
+- `revealOf(state)` (host, once scoring is done) → `view.reveal`, the same for everyone: `[{ chain, creator, original, final, drift,
+  steps: [{ round, drawer, interpreter, incoming, outgoing, similarity, rules: [{ author, target, task, text, revenge }] }] }]`
+  (names; `target` = who had the rule). **Drift** = the model's tuned similarity of the original vs the final sentence (0–100).
+- **Beats** (`revealBeats(chain, me)`, no DOM), one per tap: 📝 "Ana wrote" + S → per transformation 🎨 "Ben drew it" + "📄 Show
+  Ben's drawing" + the rules on the drawing (or 🍀 No rule), 🔍 "Cleo read it as" + S′ + score chip + rules on her task → 🏁 "From
+  start to end": started as / ended as + "📏 Start vs end" score + label. A chain has k + 2 beats. Rule lines: "😈 Dan's rule" +
+  text; revenge is highlighted red, "🔥 Eva took revenge on Ben". Your own name gets "(you)".
+- **Screen**: "← Awards", "Chain 2 / 8 · Ana's chain" with ‹ › arrows (a chain starts at its first beat), the beats shown so far
+  (the newest scrolls into view), a sticky big button **Next ▶** → **Next chain →** → **🏆 Back to the awards**, and "Show the
+  whole chain".
+- **Position** `{ code, mode: results | reveal, chain, shown }` is kept outside the DOM (memory + localStorage `tps.reveal`),
+  checked against the reveal by `cleanPosition`, so live re-renders and reloads keep it. Back to the awards keeps the place.
+- A host state scored before P12 has no drift measurements: on resume the empty slots are added and only those are measured.
 
 ### Playtest feedback (`js/ui/feedback.js`, `js/ui/feedback-sheet.js`, P11b)
 
@@ -468,7 +488,7 @@ Device model decided (2026-11-27): one phone per player, synced with Firebase, h
 | P10 | Model integration | Load the model in the background during the game; score all transformations at the end with progress shown | Finished game shows real similarity per transformation; `npm test` still passes (`tests/scoring-stage.test.js`; `npm test` also scores a played game with the real model) | ✅ |
 | P11 | Leaderboards + awards | Best Preservers, Best Saboteurs, the 3 awards (Guardian of Meaning, Master Saboteur, Agent of Chaos) | Values match P4 for the played game (`tests/standings-stage.test.js`: 8 players with revenge, every phone; an all-identical game gives only the Guardian award) | ✅ |
 | P11b | Playtest feedback | 💬 button on every screen → sheet over the game (kind + text), context recorded automatically, stored in Firebase `feedback/`; `npm run feedback` lists new entries for `docs/BACKLOG.md` triage | `tests/feedback.test.js` (report, limits, error log, memory push, backlog dedupe/format); a real entry sent from a phone shows up in `npm run feedback` | ✅ |
-| P12 | Chain reveal | Step-by-step reveal per chain: sentences, who drew/interpreted, active rules (revenge highlighted), drift from start to end | Walk through every chain of a played game on a phone screen | ⬜ |
+| P12 | Chain reveal | Step-by-step reveal per chain: sentences, who drew/interpreted, active rules (revenge highlighted), drift from start to end | `tests/reveal-stage.test.js` (8 players with revenge: every phone gets the same reveal, chains, rules and drift match the host state, stepping walks every chain; a pre-P12 save measures only the drift); then walk through every chain of a played game on a phone screen | ✅ |
 
 ---
 
@@ -536,6 +556,7 @@ Revenge rules add a little unevenness on top, which is accepted as part of the f
 | 2026-11-27 | P10: model scoring (§10 Scoring). Only the host phone loads TinyBERT (in the background during the game) and scores at the end; results and progress are published to every view. The curve comes from the host phone's `tune.html` settings (default if none) and is fixed when scoring starts. Raw logits are kept per transformation. Progress is throttled to one publish per 750 ms, and a host reload resumes without re-measuring. Tests: `tests/scoring-stage.test.js` (fake model), `npm test` (real model on a played 5-player game, ~25 ms per pair in Node). |
 | 2026-11-27 | P11: leaderboards + awards (§10 Leaderboards). The host computes them with the P4 engine and publishes `standings` (names, totals only) to every view. Finished screen order: award cards, Best Preservers, Best Saboteurs (two stacked cards, not tabs), then the P10 per-chain list collapsed until P12. Award emojis 🛡️ 😈 🌪️. Test: `tests/standings-stage.test.js`. |
 | 2026-11-27 | P11b: playtest feedback (§10 Playtest feedback), added before P12 for playtesting. A sheet over the game instead of a separate screen, so players return exactly where they were. Stored in Firebase `feedback/` (outlives games), readable by any signed-in phone: the user accepted that, nothing is sensitive. The backlog is `docs/BACKLOG.md`; `npm run feedback` only prints, triage is done together in a session. |
+| 2026-11-28 | P12: chain reveal (§10 Chain reveal). The awards + leaderboards come first, then a button opens the step-by-step reveal. Each phone steps on its own (no host-synced reveal). Drift is a real model score of the original vs the final sentence (one extra pair per chain, measured after the transformations). `view.reveal` replaces `view.scores` and the 📜 Chain scores list. Test: `tests/reveal-stage.test.js`. |
 | 2026-11-27 | Build id in the footer + feedback reports (§10 Playtest feedback). A hand-bumped constant, since the site has no build step (no commit hash available at runtime without CI). |
 | 2026-11-27 | Open question 4 (timer): **advisory**, it never forces progression. Write 60 s, draw 90 s, interpret 45 s. All phones count from the host's `roundStartedAt` (in the view), so a reload doesn't restart it. |
 | (earlier) | English only; TinyBERT cross-encoder only; scoring tuned for "same meaning, not same words". |

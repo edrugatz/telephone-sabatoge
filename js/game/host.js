@@ -14,6 +14,7 @@
 //     roundStartedAt,                    // host clock (ms) when the current round began, for the timers
 //     scoring }                          // finished stage (P10): { status: 'loading' | 'scoring' | 'done' | 'error',
 //                                        //   total, measured: [{ logitAB, logitBA, exact } | null], settings, error }
+//                                        //   measured = transformations, then one drift pair per chain (P12)
 //
 // Messages (inbox, written by clients): { from: uid, type, payload: JSON string, at }
 //   join { name } · leave {} · rules { rules: [{ type, text } ×3] } · submit { round, text? }
@@ -81,8 +82,19 @@ function needRound(game, round) {
 
 // ---- Scoring (P10) ----------------------------------------------------------------
 
+/** Drift (P12): each chain's original sentence vs its final interpretation, measured like a transformation. */
+function driftPairs(game) {
+  const { k } = game.schedule;
+  return game.players.map((_, c) => ({ chain: c, incoming: game.sentences[0][c], outgoing: game.sentences[k][c] }));
+}
+
+/** Everything the model measures, in `scoring.measured` order: the transformations, then one drift pair per chain. */
+function scoringPairs(game) {
+  return [...transformationsOf(game), ...driftPairs(game)];
+}
+
 function newScoring(game) {
-  const total = transformationsOf(game).length;
+  const total = scoringPairs(game).length;
   return { status: 'loading', total, measured: Array(total).fill(null), settings: null, error: null };
 }
 
@@ -93,26 +105,48 @@ export function scoringProgress(state) {
   return { status: s.status, done: s.measured.filter(Boolean).length, total: s.total, error: s.error ?? null };
 }
 
-/**
- * The scored transformations, once scoring is done: chain order, then round order.
- * [{ chain, creator, round, drawer, interpreter, incoming, outgoing, similarity }] (names, not ids).
- */
+/** The transformations with their tuned similarity (the first part of `scoring.measured`). */
 function tunedTransformations(state) {
-  return applyScores(transformationsOf(state.game), state.scoring.measured, state.scoring.settings);
+  const transformations = transformationsOf(state.game);
+  return applyScores(transformations, state.scoring.measured.slice(0, transformations.length), state.scoring.settings);
 }
 
-export function scoredTransformations(state) {
+/**
+ * The chain reveal (P12), once scoring is done: every chain in order, the same for everyone (names, not ids).
+ * [{ chain, creator, original, final, drift,          // drift = similarity of original vs final (0–100)
+ *    steps: [{ round, drawer, interpreter, incoming, outgoing, similarity,
+ *              rules: [{ author, target, task: 'draw'|'interpret', text, revenge }] }] }]   // target = who had the rule
+ */
+export function revealOf(state) {
   if (state.scoring?.status !== 'done') return null;
   const { game } = state;
-  return tunedTransformations(state).map((t) => ({
-    chain: t.chain,
-    creator: game.players[t.chain],
-    round: t.round,
-    drawer: game.players[t.drawer],
-    interpreter: game.players[t.interpreter],
-    incoming: t.incoming,
-    outgoing: t.outgoing,
-    similarity: t.similarity,
+  const name = (p) => game.players[p];
+  const transformations = tunedTransformations(state);
+  const drifts = applyScores(driftPairs(game), state.scoring.measured.slice(transformations.length), state.scoring.settings);
+  return drifts.map((d) => ({
+    chain: d.chain,
+    creator: name(d.chain),
+    original: d.incoming,
+    final: d.outgoing,
+    drift: d.similarity,
+    steps: transformations
+      .filter((t) => t.chain === d.chain)
+      .sort((a, b) => a.round - b.round)
+      .map((t) => ({
+        round: t.round,
+        drawer: name(t.drawer),
+        interpreter: name(t.interpreter),
+        incoming: t.incoming,
+        outgoing: t.outgoing,
+        similarity: t.similarity,
+        rules: t.rules.map((r) => ({
+          author: name(r.author),
+          target: name(r.task === 'draw' ? t.drawer : t.interpreter),
+          task: r.task,
+          text: r.text,
+          revenge: r.revenge,
+        })),
+      })),
   }));
 }
 
@@ -199,7 +233,7 @@ export function playerView(state, uid) {
   }
   if (stage === 'finished') {
     view.scoring = scoringProgress(state);
-    view.scores = scoredTransformations(state);
+    view.reveal = revealOf(state);
     view.standings = standings(state);
   }
   return view;
@@ -297,6 +331,13 @@ function parseState(json) {
     state.scoring ??= newScoring(state.game); // a game that finished before P10
     // Scoring stopped with the reload: it continues (from the saved measurements) once the model is back.
     if (state.scoring.status === 'scoring') state.scoring.status = 'loading';
+    // A game scored before P12 has no drift measurements: add the empty slots, so only those get measured.
+    const total = scoringPairs(state.game).length;
+    if (state.scoring.measured.length < total) {
+      state.scoring.measured = [...state.scoring.measured, ...Array(total - state.scoring.measured.length).fill(null)];
+      state.scoring.total = total;
+      if (state.scoring.status === 'done') state.scoring.status = 'loading';
+    }
   }
   return state;
 }
@@ -515,7 +556,7 @@ export class Host {
         if (state.scoring.measured.every(Boolean)) state.scoring.status = 'done';
       });
     try {
-      const transformations = transformationsOf(this.state.game);
+      const transformations = scoringPairs(this.state.game);
       await measureAll(transformations, measure, {
         measured: this.state.scoring.measured,
         shouldStop: () => this.stopped,

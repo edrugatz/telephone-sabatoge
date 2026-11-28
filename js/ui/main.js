@@ -18,6 +18,8 @@ import { lobbyScreen, BOT_TARGET } from './screens/lobby.js';
 import { createRulesScreen } from './screens/rules.js';
 import { createTaskScreen } from './screens/task.js';
 import { finishedScreen } from './screens/finished.js';
+import { revealScreen } from './screens/reveal.js';
+import { cleanPosition } from './reveal-view.js';
 import { roundTitle } from './pass.js';
 import { emptyDraft, draftToRules } from './rule-draft.js';
 import { loadingScreen, errorScreen, stageScreen } from './screens/status.js';
@@ -107,6 +109,8 @@ const app = {
   // Scoring (P10, host phone): the model download started in the background during the game.
   modelPreloaded: false,
   scoringStarting: false,
+  // Chain reveal (P12): this phone's position { code, mode, chain, shown } (reveal-view.js).
+  reveal: null,
 };
 
 function safeStorage() {
@@ -287,17 +291,53 @@ function render() {
   } else if (view.stage === 'finished') {
     if (app.shownRound !== null) announce('🏁 Game over! Papers to the reveal pile');
     app.shownRound = null;
-    router.show('finished', finishedScreen({
-      view,
-      isHost,
-      download: isHost ? modelProgress() : null,
-      onRetry: () => hostAction(() => app.host.retryScoring()),
-      onEndGame: endGame,
-    }));
+    showFinished(view, isHost);
     if (isHost) startScoring(view);
   } else {
     router.show('stage', stageScreen({ view, isHost, onEndGame: endGame }));
   }
+}
+
+// ---- Finished: awards + leaderboards, then the chain reveal (P11, P12) ----------------------
+
+function showFinished(view, isHost) {
+  const reveal = view.reveal;
+  if (app.reveal?.code !== view.code) app.reveal = cleanPosition(store.loadReveal(), view.code, reveal);
+  if (reveal?.length) app.reveal = cleanPosition(app.reveal, view.code, reveal);
+  const move = (position) => {
+    app.reveal = position;
+    store.saveReveal(position);
+  };
+  if (app.reveal.mode === 'reveal' && reveal?.length) {
+    router.show('reveal', revealScreen({
+      view,
+      position: app.reveal,
+      onMove: (position, { scroll }) => {
+        const newChain = position.chain !== app.reveal.chain;
+        move(position);
+        render();
+        if (newChain) window.scrollTo(0, 0);
+        else if (scroll) document.querySelector('.beat.is-latest')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+      onBack: () => {
+        move({ ...app.reveal, mode: 'results' });
+        render();
+      },
+    }));
+    return;
+  }
+  router.show('finished', finishedScreen({
+    view,
+    isHost,
+    download: isHost ? modelProgress() : null,
+    started: app.reveal.chain > 0 || app.reveal.shown > 1,
+    onOpenReveal: () => {
+      move({ ...app.reveal, mode: 'reveal' });
+      render();
+    },
+    onRetry: () => hostAction(() => app.host.retryScoring()),
+    onEndGame: endGame,
+  }));
 }
 
 // ---- Scoring (P10, host phone only) ----------------------------------------------------

@@ -1,13 +1,10 @@
-// Game over (P9, P10, P11): the hand-off to the reveal pile, then the host phone scores every transformation.
-// The scoring card shows the progress (model download on the host, then n / total). Once done: the awards,
-// the two leaderboards, and the per-chain scores collapsed underneath (the chain reveal, P12, replaces those).
+// Game over (P9–P12): the hand-off to the reveal pile, then the host phone scores every transformation.
+// The scoring card shows the progress (model download on the host, then n / total). Once done: the awards and
+// the two leaderboards first, then a button that opens the step-by-step chain reveal (screens/reveal.js).
 
 import { h } from '../dom.js';
-import { scoringCard, chainScores } from '../scoring-view.js';
+import { scoringCard } from '../scoring-view.js';
 import { awardCards, boardRows } from '../standings-view.js';
-
-// The screen is redrawn on every view update: remember whether the chain list was opened.
-let chainsOpen = false;
 
 function awards(standings, me) {
   const cards = awardCards(standings, me);
@@ -61,25 +58,27 @@ function board(title, hint, rows) {
   );
 }
 
-function results(view) {
+function results(view, { started, onOpenReveal }) {
   const me = view.you?.name ?? null;
   const rows = boardRows(view.standings, me);
-  const details = h(
-    'details',
-    { class: 'card chain-scores', on: { toggle: () => (chainsOpen = details.open) } },
-    h('summary', { text: '📜 Chain scores' }),
-    h('div', { class: 'stack' }, scoreList(view.scores)),
-  );
-  details.open = chainsOpen;
   return [
     awards(view.standings, me),
     board('🛡️ Best Preservers', 'Least meaning lost in their own drawings and interpretations', rows.preservers),
     board('😈 Best Saboteurs', 'Most damage caused by their sabotage rules', rows.saboteurs),
-    details,
+    h(
+      'div',
+      { class: 'card stack reveal-cta' },
+      h('p', { class: 'card-title', text: '🎬 Now the fun part' }),
+      h('p', { class: 'hint', text: 'Walk through every chain: who drew what, which rules got in the way, and how far each sentence drifted. Lay the papers out as you go.' }),
+      h('button', {
+        class: 'btn btn-primary btn-block',
+        type: 'button',
+        text: started ? '🎬 Back to the chain reveal' : '🎬 Step through the chains',
+        on: { click: onOpenReveal },
+      }),
+    ),
   ];
 }
-
-const scoreColor = (score) => `hsl(${Math.round(score * 1.2)}, 70%, 50%)`;
 
 function progressBar(percent) {
   return h(
@@ -89,37 +88,14 @@ function progressBar(percent) {
   );
 }
 
-function scoreList(scores) {
-  return chainScores(scores).map((chain) =>
-    h(
-      'div',
-      { class: 'card stack score-chain' },
-      h('p', { class: 'card-title', text: `📜 ${chain.creator}'s chain` }),
-      h(
-        'ol',
-        { class: 'score-steps' },
-        chain.steps.map((step) =>
-          h(
-            'li',
-            { class: 'score-step' },
-            h('p', { class: 'score-who', text: `🎨 ${step.drawer} → 🔍 ${step.interpreter}` }),
-            h('p', { class: 'score-pair' }, h('span', { text: `“${step.incoming}”` }), h('span', { class: 'hint', text: ' became ' }), h('span', { text: `“${step.outgoing}”` })),
-            h(
-              'p',
-              { class: 'score-value', style: `--score-color: ${scoreColor(step.similarity)}` },
-              h('strong', { text: step.similarity.toFixed(1) }),
-              h('span', { class: 'hint', text: ` · ${step.label}` }),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-export function finishedScreen({ view, isHost, download, onRetry, onEndGame }) {
+/**
+ * @param {{ view, isHost, download, started: boolean, onOpenReveal, onRetry, onEndGame }} props
+ *   started = this phone has already stepped into the reveal (the button says "Back to…")
+ */
+export function finishedScreen({ view, isHost, download, started = false, onOpenReveal, onRetry, onEndGame }) {
   const n = view.players.length;
   const card = scoringCard(view.scoring, { isHost, download });
+  const ready = card.state === 'done' && view.standings && view.reveal;
   return h(
     'section',
     { class: 'screen stack' },
@@ -149,7 +125,7 @@ export function finishedScreen({ view, isHost, download, onRetry, onEndGame }) {
       card.percent !== null && card.state !== 'done' ? progressBar(card.percent) : null,
       card.retry ? h('button', { class: 'btn btn-primary btn-block', type: 'button', text: 'Try again 🔁', on: { click: onRetry } }) : null,
     ),
-    card.state === 'done' ? results(view) : null,
+    ready ? results(view, { started, onOpenReveal }) : null,
     h('button', { class: 'btn btn-link', type: 'button', text: 'Close this game', on: { click: onEndGame } }),
   );
 }

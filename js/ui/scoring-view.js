@@ -1,7 +1,5 @@
 // Texts for the scoring card on the finished screen (P10). No DOM, so the tests can check them.
 
-import { describe } from '../similarity.js';
-
 const mb = (bytes) => (bytes / 1e6).toFixed(1);
 
 /**
@@ -48,26 +46,4 @@ export function scoringCard(scoring, { isHost, download = null } = {}) {
     percent: null,
     retry: false,
   };
-}
-
-/**
- * Scores grouped per chain, for the simple list (P11/P12 replace it).
- * @param {{ chain, creator, round, drawer, interpreter, incoming, outgoing, similarity }[] | null} scores
- * @returns {{ chain, creator, steps: { drawer, interpreter, incoming, outgoing, similarity, label }[] }[]}
- */
-export function chainScores(scores) {
-  const chains = new Map();
-  for (const s of scores ?? []) {
-    if (!chains.has(s.chain)) chains.set(s.chain, { chain: s.chain, creator: s.creator, steps: [] });
-    chains.get(s.chain).steps.push({
-      round: s.round,
-      drawer: s.drawer,
-      interpreter: s.interpreter,
-      incoming: s.incoming,
-      outgoing: s.outgoing,
-      similarity: s.similarity,
-      label: describe(s.similarity),
-    });
-  }
-  return [...chains.values()].sort((a, b) => a.chain - b.chain).map((c) => ({ ...c, steps: c.steps.sort((a, b) => a.round - b.round) }));
 }
